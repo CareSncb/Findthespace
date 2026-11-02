@@ -1,0 +1,10 @@
+{
+  "appId": "com.caresncb.findthespace",
+  "appName": "Find the Space",
+  "webDir": "www",
+  "backgroundColor": "#091327",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false
+  }
+}

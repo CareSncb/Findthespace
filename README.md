@@ -1,1 +1,21 @@
-# Findthespace
+# Find the Space
+
+Jeu de football qui apprend aux enfants à bien se placer : le joueur écrit son prénom, choisit le 5, 8 ou 11 contre 11 et son poste, puis décide vite quand ouvrir ou fermer le jeu. En flamand et en français.
+
+## Récupérer l'IPA
+
+1. Ouvrez l'onglet **Actions** du dépôt, puis la dernière exécution de **Build iOS IPA**.
+2. Quand elle est verte, téléchargez `FindTheSpace-unsigned-ipa` en bas de la page.
+3. Décompressez le fichier téléchargé pour obtenir `FindTheSpace-unsigned.ipa`.
+
+Cet IPA n'est **pas signé** : Apple exige une signature pour l'installer sur un iPhone.
+
+- **Sur votre iPhone :** signez-le avec Sideloadly ou AltStore et un identifiant Apple gratuit. L'installation expire après environ 7 jours.
+- **Pour des testeurs :** il faut un compte Apple Developer payant, puis TestFlight.
+
+## Structure
+
+- `src/game.html` : le jeu, seul fichier à modifier pour changer le contenu.
+- `scripts/build-web.mjs` : prépare la page pour l'application, avec ses polices hors ligne.
+- `assets/icon-1024.png` : l'icône de l'application.
+- `.github/workflows/ios.yml` : la compilation sur Mac par GitHub Actions.
