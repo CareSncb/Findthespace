@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#091327">
+<title>Find the Space</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Lilita+One&display=swap">
+<style>
+/* Layout: a floodlit stadium at night. Setup is a four-step walk to the pitch; the match is a TV broadcast with the decision under the thumb. */
+:root{
+  color-scheme:dark;
+  --night:#091327; --panel:#14233f; --panel-2:#1f3459; --line:#33507f; --chalk:#f8f7ef; --muted:#b4c4dc;
+  --red:#e0212f; --red-deep:#8f1320; --ink:#0b0f18; --gold:#ffc928; --gold-deep:#a97f00;
+  --open:#ffc928; --dicht:#7fe7ea; --good:#74e08a; --bad:#ff8d7d; --grass:#27864a;
+  --display:"Lilita One","Arial Black",Impact,sans-serif;
+  --body:"Andika","Trebuchet MS",Verdana,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(120% 60% at 50% -5%,#2a4678 0%,#101f3b 45%,var(--night) 100%);background-color:var(--night);color:var(--chalk);font-family:var(--body);font-size:18px;line-height:1.35;overflow:hidden;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-block:10px}
+button{font:inherit;color:inherit;border:0;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h1,h2,p{margin:0}
+.screen{height:100%;max-width:640px;margin:0 auto}
+
+/* Setup */
+#setup{display:flex;flex-direction:column;gap:12px}
+.top{display:flex;align-items:center;gap:10px;min-height:48px}
+.icon-btn{background:var(--panel);border-radius:12px;min-width:46px;height:46px;font-weight:700;flex:none;border:1px solid var(--line)}
+.steps{flex:1;display:flex;gap:6px;min-width:0}
+.steps i{flex:1;height:8px;border-radius:5px;background:var(--panel-2)}
+.steps i.on{background:var(--gold)}
+.step{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-bottom:8px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,72px);line-height:.95;text-wrap:balance;overflow-wrap:anywhere}
+h1 em{font-style:normal;color:var(--gold)}
+.step h2{font-family:var(--display);font-weight:400;font-size:clamp(30px,8.5vw,42px);line-height:1.02;text-wrap:balance}
+.lead{color:var(--muted)}
+label{font-weight:700;display:block;margin-bottom:6px}
+input[type=text]{width:100%;font:inherit;font-size:24px;font-weight:700;padding:13px 14px;border-radius:12px;border:2px solid var(--line);background:var(--ink);color:var(--chalk)}
+input::placeholder{color:#7f92b0;font-weight:400}
+.err{color:var(--bad);font-weight:700;min-height:1.3em}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seg{display:flex;background:var(--panel);border-radius:12px;padding:4px;border:1px solid var(--line)}
+.seg button{background:none;padding:7px 15px;border-radius:9px;font-weight:700;min-height:42px}
+.seg button[aria-pressed="true"]{background:var(--chalk);color:var(--ink)}
+.cta{font-family:var(--display);font-size:27px;padding:15px;border-radius:14px;background:var(--red);box-shadow:0 6px 0 var(--red-deep);margin-top:auto;width:100%}
+.cta:active{transform:translateY(4px);box-shadow:0 2px 0 var(--red-deep)}
+.cta:disabled{background:var(--panel-2);box-shadow:none;color:var(--muted);cursor:default}
+.formats{display:flex;flex-direction:column;gap:10px}
+.fmt{display:grid;grid-template-columns:96px 1fr;gap:14px;align-items:center;text-align:left;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:9px}
+.fmt:hover{border-color:var(--gold)}
+.fmt svg{width:96px;height:auto;display:block;border-radius:7px}
+.fmt strong{font-family:var(--display);font-weight:400;font-size:29px;display:block;line-height:1}
+.fmt small{font-size:16px;color:var(--muted)}
+.picker{position:relative;width:min(100%,48dvh);margin:0 auto;aspect-ratio:100/118;border-radius:12px;overflow:hidden;flex:none;border:2px solid #ffffffaa;
+  background:repeating-linear-gradient(0deg,#2a8d4f 0 10%,#267f47 10% 20%)}
+.picker svg{position:absolute;inset:0;width:100%;height:100%}
+.spot{position:absolute;transform:translate(-50%,-50%);background:none;display:flex;flex-direction:column;align-items:center;gap:1px;width:58px;min-height:44px;padding:0}
+.spot b{width:32px;height:32px;border-radius:50%;background:var(--red);border:2px solid #fff;display:grid;place-items:center;font-family:var(--display);font-weight:400;font-size:16px;box-shadow:0 2px 3px #0008}
+.spot span{font-size:11.5px;font-weight:700;line-height:1;text-shadow:0 1px 2px #000;white-space:nowrap}
+.spot[aria-pressed="true"] b{background:var(--gold);color:var(--ink);transform:scale(1.2);box-shadow:0 0 0 4px #ffc92866,0 2px 3px #0008}
+.role-info{background:var(--panel);border-radius:12px;padding:10px 12px;min-height:76px}
+.role-info strong{font-family:var(--display);font-weight:400;font-size:23px;display:block;line-height:1.1}
+.levels{display:flex;flex-direction:column;gap:9px}
+.level{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;text-align:left;background:var(--red);padding:11px 13px;border-radius:14px;box-shadow:0 5px 0 var(--red-deep)}
+.level:active{transform:translateY(4px);box-shadow:0 1px 0 var(--red-deep)}
+.level .num{font-family:var(--display);font-size:34px;line-height:1;text-align:center}
+.level strong{font-family:var(--display);font-weight:400;font-size:24px;display:block;line-height:1.05}
+.level small{font-size:15px;display:block}
+.stars{font-size:19px;letter-spacing:1px;white-space:nowrap;color:var(--gold)}
+.summary{background:var(--panel);border-radius:12px;padding:9px 12px;font-weight:700}
+
+/* Match */
+#play{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:6px}
+.board{display:grid;grid-template-columns:42px 1fr 42px;gap:7px;align-items:center;background:linear-gradient(180deg,#1b2d50,#0d1729);border:1px solid var(--line);border-radius:12px;padding:5px 6px}
+.board .icon-btn{min-width:42px;height:42px}
+.score{display:grid;grid-template-columns:minmax(0,1fr) auto auto minmax(0,1fr);align-items:center;gap:6px;font-family:var(--display);min-width:0}
+.score .team{font-size:17px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.score .home-t{text-align:right;color:#ff8089}.score .away-t{color:#8fbbff}
+.score .n{font-size:31px;line-height:1;background:var(--chalk);color:var(--ink);border-radius:7px;min-width:34px;text-align:center;padding:2px 4px;font-variant-numeric:tabular-nums}
+.meter{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
+.chip{font-weight:700;font-size:14px;color:var(--gold);white-space:nowrap;max-width:58vw;overflow:hidden;text-overflow:ellipsis}
+.timer{height:13px;background:#ffffff1c;border-radius:8px;overflow:hidden}
+.timer i{display:block;height:100%;width:100%;background:var(--good);transform-origin:left;border-radius:8px}
+.pitch-wrap{position:relative;min-height:0;border-radius:12px;overflow:hidden}
+canvas{position:absolute;inset:0;display:block;touch-action:none;cursor:pointer}
+.banner{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(24px,7vw,36px);padding:7px 18px;border-radius:12px;white-space:nowrap;pointer-events:none;background:var(--chalk);color:var(--ink);max-width:94%;overflow:hidden;text-overflow:ellipsis}
+.banner.big{font-size:clamp(52px,18vw,96px);background:var(--red);color:var(--chalk);box-shadow:0 7px 0 var(--ink)}
+.dock{min-height:128px;display:flex;flex-direction:column;justify-content:center;gap:7px}
+.prompt{text-align:center;font-weight:700;font-size:20px}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice{font-family:var(--display);font-size:32px;color:var(--ink);padding:17px 6px;border-radius:14px;line-height:1}
+.choice.o{background:linear-gradient(180deg,#ffe067,var(--open));box-shadow:0 5px 0 var(--gold-deep)}
+.choice.d{background:linear-gradient(180deg,#b6f6f7,var(--dicht));box-shadow:0 5px 0 #2f9396}
+.choice:active{transform:translateY(4px);box-shadow:none}
+.feedback{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:9px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;align-items:center}
+.feedback h2{font-family:var(--display);font-weight:400;font-size:26px;line-height:1.05;overflow-wrap:anywhere}
+.feedback p{grid-column:1;font-size:17.5px}
+.feedback.good h2{color:var(--good)}.feedback.close h2{color:var(--open)}.feedback.bad h2{color:var(--bad)}
+.go{grid-column:2;grid-row:1/3;background:var(--chalk);color:var(--ink);font-family:var(--display);font-size:20px;border-radius:12px;padding:14px 13px;min-height:52px}
+
+/* Result */
+#result{display:flex;flex-direction:column;justify-content:center;gap:13px;text-align:center;overflow-y:auto}
+#result h2{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,70px);line-height:1}
+.final{font-family:var(--display);font-size:clamp(30px,9vw,44px);overflow-wrap:anywhere}
+#rStars{font-size:50px;color:var(--gold);letter-spacing:4px}
+.tally{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tally div{background:var(--panel);border-radius:12px;padding:10px;font-weight:700}
+.tally b{display:block;font-family:var(--display);font-weight:400;font-size:31px;font-variant-numeric:tabular-nums}
+.tally .o b{color:var(--open)}.tally .d b{color:var(--dicht)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{font-family:var(--display);font-size:20px;padding:13px 8px;border-radius:12px;background:var(--panel-2)}
+.btn.main{background:var(--red);box-shadow:0 5px 0 var(--red-deep)}
+
+@media (orientation:landscape) and (max-height:560px){
+  .screen{max-width:none}
+  #play{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+  .pitch-wrap{grid-column:1;grid-row:1/4}
+  .board{grid-column:2;grid-row:1}.meter{grid-column:2;grid-row:2}.dock{grid-column:2;grid-row:3}
+  .picker{width:min(100%,62dvh)}
+}
+body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,env(safe-area-inset-bottom,0px));-webkit-text-size-adjust:100%}
+</style>
+</head>
+<body>
+
+
+<section id="setup" class="screen">
+  <div class="top">
+    <button class="icon-btn" id="back" aria-label="Terug" data-fr-aria="Retour" hidden>←</button>
+    <div class="steps" id="steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <button class="icon-btn" id="soundHome" aria-label="Geluid aan of uit" data-fr-aria="Son activé ou coupé">🔊</button>
+  </div>
+
+  <div class="step" id="s1">
+    <h1>Find the <em>Space</em><span id="heroName" hidden></span></h1>
+    <p class="lead" data-fr="Joue à ta place. Décide vite. Apprends à bien te placer.">Speel op jouw plek. Beslis snel. Leer goed staan.</p>
+    <div>
+      <label for="nameInput" data-fr="Comment tu t’appelles ?">Hoe heet jij?</label>
+      <input type="text" id="nameInput" maxlength="12" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Je naam" data-fr-ph="Ton prénom">
+    </div>
+    <div>
+      <label for="clubInput" data-fr="Ton équipe (si tu veux)">Jouw ploeg (als je wil)</label>
+      <input type="text" id="clubInput" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Thuis" data-fr-ph="Nous">
+    </div>
+    <div class="row">
+      <strong data-fr="Langue">Taal</strong>
+      <div class="seg">
+        <button id="langNl" aria-pressed="true" lang="nl">Vlaams</button>
+        <button id="langFr" aria-pressed="false" lang="fr">Français</button>
+      </div>
+    </div>
+    <p class="err" id="nameErr" role="alert"></p>
+    <button class="cta" id="toFormat" data-fr="Continuer">Verder</button>
+  </div>
+
+  <div class="step" id="s2" hidden>
+    <h2 data-fr="Quel match joues-tu ?">Welke match speel jij?</h2>
+    <div class="formats" id="formats"></div>
+  </div>
+
+  <div class="step" id="s3" hidden>
+    <h2 data-fr="Touche ta place">Tik op jouw plek</h2>
+    <div class="picker" id="picker"></div>
+    <div class="role-info" id="roleInfo"></div>
+    <button class="cta" id="toLevel" data-fr="Continuer" disabled>Verder</button>
+  </div>
+
+  <div class="step" id="s4" hidden>
+    <h2 data-fr="Choisis ton défi">Kies je match</h2>
+    <p class="summary" id="summary"></p>
+    <div class="levels" id="levels"></div>
+    <div class="row">
+      <strong data-fr="Vitesse">Snelheid</strong>
+      <div class="seg">
+        <button id="tempoSlow" aria-pressed="false" data-fr="Calme">Rustig</button>
+        <button id="tempoMatch" aria-pressed="true">Match</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="play" class="screen" hidden>
+  <div class="board">
+    <button class="icon-btn" id="quit" aria-label="Stop de match" data-fr-aria="Arrêter le match">✕</button>
+    <div class="score"><span class="team home-t" id="tHome"></span><span class="n" id="sHome">0</span><span class="n" id="sAway">0</span><span class="team away-t" data-fr="ADV">GAST</span></div>
+    <button class="icon-btn" id="soundPlay" aria-label="Geluid aan of uit" data-fr-aria="Son activé ou coupé">🔊</button>
+  </div>
+  <div class="meter"><span class="chip" id="chip"></span><div class="timer"><i id="timeBar"></i></div></div>
+  <div class="pitch-wrap" id="wrap">
+    <canvas id="cv" aria-label="Voetbalveld. Tik waar jij moet staan." data-fr-aria="Terrain de foot. Touche l’endroit où te placer."></canvas>
+    <div class="banner" id="banner" hidden></div>
+  </div>
+  <div class="dock">
+    <p class="prompt" id="prompt"></p>
+    <div class="choices" id="choices" hidden>
+      <button class="choice o" id="btnOpen" data-fr="OUVRIR">OPEN</button>
+      <button class="choice d" id="btnDicht" data-fr="FERMER">DICHT</button>
+    </div>
+    <div class="feedback" id="fb" hidden>
+      <h2 id="fbTitle"></h2>
+      <p id="fbTip"></p>
+      <button class="go" id="fbGo" data-fr="Suite">Verder</button>
+    </div>
+  </div>
+</section>
+
+<section id="result" class="screen" hidden>
+  <h2 id="rTitle"></h2>
+  <div class="final" id="rScore"></div>
+  <div id="rStars" role="img"></div>
+  <div class="tally">
+    <div class="o"><b id="rOpen"></b><span data-fr="fois bien ouvert">keer goed open</span></div>
+    <div class="d"><b id="rDicht"></b><span data-fr="fois bien fermé">keer goed dicht</span></div>
+  </div>
+  <p id="rTip"></p>
+  <div class="actions">
+    <button class="btn" id="rMenu" data-fr="Autre poste">Andere plek</button>
+    <button class="btn main" id="rAgain" data-fr="Encore un match">Nog een match</button>
+  </div>
+</section>
+
+<script>
+"use strict";
+/* ========== Language ========== */
+let lang='nl';
+const t=(nl,fr)=>lang==='fr'?fr:nl, p2=a=>lang==='fr'?a[1]:a[0];
+const $=id=>document.getElementById(id);
+
+/* ========== Formations. x 0-100, y 0 (their goal) to 140 (our goal). ========== */
+const R=(id,role,x,y,no,nl,fr,sn,sf)=>({id,role,x,y,no,nl,fr,sn,sf});
+const GK=R('gk','GK',50,133,1,'Doelman','Gardien','Keeper','Gardien');
+const FORMATS={
+ 5:{players:5,size:1,radius:[15,25],line:[38,62],box:[[26,74,20]],name:['5 tegen 5','5 contre 5'],sub:['Klein veld, veel aan de bal','Petit terrain, beaucoup de ballons'],slots:[GK,
+   R('d','CB',50,106,2,'Verdediger','Défenseur','Achter','Arrière'),
+   R('l','W',14,80,7,'Linkerflank','Ailier gauche','Links','Gauche'),
+   R('r','W',86,80,11,'Rechterflank','Ailier droit','Rechts','Droite'),
+   R('s','ST',50,50,9,'Spits','Attaquant','Spits','Attaquant')]},
+ 8:{players:8,size:.86,radius:[13,22],line:[39,61],box:[[22,78,22]],name:['8 tegen 8','8 contre 8'],sub:['Drie lijnen op een half veld','Trois lignes sur un demi-terrain'],slots:[GK,
+   R('lb','FB',18,108,3,'Linksachter','Arrière gauche','Links','Arr. G'),
+   R('cb','CB',50,113,4,'Centrale verdediger','Défenseur central','Centraal','Central'),
+   R('rb','FB',82,108,2,'Rechtsachter','Arrière droit','Rechts','Arr. D'),
+   R('lm','W',16,76,7,'Linkermiddenvelder','Milieu gauche','Links','Mil. G'),
+   R('cm','CM',50,84,8,'Centrale middenvelder','Milieu central','Midden','Milieu'),
+   R('rm','W',84,76,11,'Rechtermiddenvelder','Milieu droit','Rechts','Mil. D'),
+   R('st','ST',50,50,9,'Spits','Attaquant','Spits','Attaquant')]},
+ 11:{players:11,size:.76,radius:[11,19],line:[42,58],box:[[20,80,24],[36,64,9]],name:['11 tegen 11','11 contre 11'],sub:['Groot veld, iedereen zijn taak','Grand terrain, chacun son rôle'],slots:[GK,
+   R('lb','FB',13,108,3,'Linksachter','Arrière gauche','Links','Arr. G'),
+   R('lcb','CB',36,115,5,'Linkse centrale verdediger','Défenseur central gauche','Centr. L','Déf. G'),
+   R('rcb','CB',64,115,4,'Rechtse centrale verdediger','Défenseur central droit','Centr. R','Déf. D'),
+   R('rb','FB',87,108,2,'Rechtsachter','Arrière droit','Rechts','Arr. D'),
+   R('dm','CM',50,94,6,'Verdedigende middenvelder','Milieu défensif','Midden','Mil. déf'),
+   R('lcm','CM',30,75,10,'Linkse middenvelder','Milieu gauche','Mid. L','Mil. G'),
+   R('rcm','CM',70,75,8,'Rechtse middenvelder','Milieu droit','Mid. R','Mil. D'),
+   R('lw','W',12,48,7,'Linksbuiten','Ailier gauche','Links','Ail. G'),
+   R('st','ST',50,40,9,'Spits','Attaquant','Spits','Attaquant'),
+   R('rw','W',88,48,11,'Rechtsbuiten','Ailier droit','Rechts','Ail. D')]}
+};
+const ROLE_INFO={
+ GK:['Jij beschermt het doel en start de aanval. Ook zonder bal speel je mee.','Tu protèges le but et lances l’attaque. Même sans ballon, tu joues.'],
+ CB:['Jij bewaakt het midden voor ons doel. Jij ziet het hele veld.','Tu surveilles le milieu devant notre but. Tu vois tout le terrain.'],
+ FB:['Jij verdedigt jouw kant. Als wij de bal hebben, loop je mee naar voor.','Tu défends ton côté. Quand on a le ballon, tu montes.'],
+ CM:['Jij bent de verbinding tussen verdedigen en aanvallen.','Tu fais le lien entre la défense et l’attaque.'],
+ W:['Jij maakt het veld breed. Als wij de bal kwijt zijn, kom je terug.','Tu rends le terrain large. Quand on perd le ballon, tu reviens.'],
+ ST:['Jij maakt het veld lang. Jij bent ook de eerste verdediger.','Tu rends le terrain long. Tu es aussi le premier défenseur.']
+};
+const D={
+ CLOSE:['Te dicht bij de bal. Maak ruimte!','Trop près du ballon. Fais de la place !'],
+ FAR:['Te ver weg. Kom dichterbij.','Trop loin. Rapproche-toi.'],
+ BACK:['Te ver naar achter. Schuif mee op!','Trop en arrière. Monte avec l’équipe !'],
+ UP:['Te ver naar voor. Kom terug!','Trop en avant. Reviens !'],
+ BEHIND:['Achter de bal kan je niet helpen.','Derrière le ballon, tu ne peux pas aider.'],
+ ALL:['Niet allemaal naar de bal!','Pas tous sur le ballon !'],
+ BLOCK:['Daar staat een tegenstander in de weg.','Là, un adversaire bloque la passe.'],
+ WIDE:['Te ver aan de kant. Het midden staat open.','Trop sur le côté. Le milieu est ouvert.'],
+ LINE:['Op je lijn lijkt het doel groot. Kom voor!','Sur ta ligne, le but paraît grand. Avance !'],
+ OUT:['Te ver uit je doel. De bal kan over jou.','Trop loin de ton but. Le ballon peut passer au-dessus.'],
+ SIDE:['Daar blijft ons doel open.','Là, notre but reste ouvert.'],
+ HIDE:['Hier kan niemand je aanspelen.','Ici, personne ne peut te faire la passe.']
+};
+/* Situations are written for a player on the left. A right-sided player sees them mirrored. */
+const S=(role,s,ball,ideal,tip,d1,k1,d2,k2,o={})=>({role,s,ball,ideal,tip,d:[[d1,D[k1]],[d2,D[k2]]],...o});
+const SITS=[
+ // Keeper
+ S('GK','open',[30,112],[46,121],['Kom uit je doel. Dan kan je maat naar jou terugspelen.','Sors de ton but. Ton équipier peut te redonner le ballon.'],[50,136],'LINE',[28,92],'OUT'),
+ S('GK','open',[50,72],[50,106],['Bal ver weg? Kom naar voor en vang de lange bal.','Ballon loin ? Avance pour capter le long ballon.'],[50,136],'LINE',[50,78],'OUT'),
+ S('GK','open',[16,42],[42,102],['Wij vallen aan. Schuif mee achter de verdedigers.','On attaque. Monte derrière les défenseurs.'],[50,136],'LINE',[28,60],'OUT'),
+ S('GK','open',[20,116],[36,127],['Ga naar de kant van de bal. Help je maat.','Va du côté du ballon. Aide ton équipier.'],[76,130],'HIDE',[20,96],'OUT'),
+ S('GK','dicht',[50,98],[50,121],['Kom voor de bal. Dan lijkt het doel klein.','Avance face au ballon. Le but paraît plus petit.'],[50,137],'LINE',[28,124],'SIDE'),
+ S('GK','dicht',[16,112],[39,131],['Bal op de kant? Bewaak de eerste paal.','Ballon sur le côté ? Protège le premier poteau.'],[64,131],'SIDE',[50,108],'OUT'),
+ S('GK','dicht',[50,50],[50,114],['Bal ver weg? Sta aan de rand van je zestien.','Ballon loin ? Place-toi au bord de ta surface.'],[50,137],'LINE',[50,84],'OUT'),
+ S('GK','dicht',[44,104],[47,119],['Hij komt alleen! Kom uit en maak je groot.','Il arrive seul ! Sors et fais-toi grand.'],[47,137],'LINE',[74,126],'SIDE',{press:true}),
+ // Central defender
+ S('CB','open',[50,133],[20,118],['De keeper heeft de bal. Ga breed naast de zestien.','Le gardien a le ballon. Écarte-toi à côté de la surface.'],[50,119],'CLOSE',[36,84],'UP'),
+ S('CB','open',[56,70],[38,92],['Schuif mee op, maar blijf achter de bal.','Monte avec l’équipe, mais reste derrière le ballon.'],[38,124],'BACK',[44,50],'UP'),
+ S('CB','open',[14,84],[34,100],['Sta schuin achter de bal. Dan heeft je maat altijd een pass.','Place-toi en diagonale derrière le ballon. Ton équipier a toujours une passe.'],[16,96],'CLOSE',[78,100],'FAR'),
+ S('CB','open',[50,34],[44,74],['Wij vallen aan. Blijf aan de middellijn, klaar voor hun tegenaanval.','On attaque. Reste vers la ligne médiane, prêt pour leur contre.'],[44,116],'BACK',[44,38],'UP'),
+ S('CB','dicht',[50,88],[42,112],['Blijf tussen de bal en ons doel.','Reste entre le ballon et notre but.'],[50,78],'BEHIND',[12,110],'WIDE'),
+ S('CB','dicht',[15,94],[29,114],['Schuif naar de bal en bescherm het doel.','Glisse vers le ballon et protège le but.'],[15,80],'BEHIND',[78,114],'FAR'),
+ S('CB','dicht',[85,94],[50,114],['Bal aan de overkant? Schuif naar het midden.','Ballon de l’autre côté ? Glisse vers le milieu.'],[14,112],'WIDE',[86,82],'ALL'),
+ S('CB','dicht',[70,84],[42,117],['Kijk rond! Sta tussen de vrije spits en ons doel.','Regarde autour de toi ! Place-toi entre l’attaquant libre et notre but.'],[70,72],'ALL',[14,120],'WIDE',{f:[[40,104]]}),
+ // Full back
+ S('FB','open',[50,133],[8,104],['De keeper heeft de bal. Ga breed, tot aan de zijlijn.','Le gardien a le ballon. Écarte-toi jusqu’à la ligne de touche.'],[40,122],'CLOSE',[10,58],'UP'),
+ S('FB','open',[50,112],[8,90],['Ga hoog en breed. Dan is de pass veilig.','Monte et écarte-toi. La passe est plus sûre.'],[38,114],'CLOSE',[45,84],'BLOCK'),
+ S('FB','open',[12,50],[24,70],['Kom onder de bal. Dan heeft je maat hulp.','Viens derrière le ballon. Ton équipier a de l’aide.'],[12,104],'BACK',[12,38],'BEHIND'),
+ S('FB','open',[85,70],[12,74],['Bal aan de overkant? Blijf breed voor de lange pass.','Ballon de l’autre côté ? Reste large pour la longue passe.'],[48,82],'WIDE',[12,122],'BACK'),
+ S('FB','dicht',[15,84],[18,108],['Bal op jouw kant. Sta tussen de bal en ons doel.','Ballon de ton côté. Place-toi entre le ballon et notre but.'],[15,70],'BEHIND',[52,110],'FAR'),
+ S('FB','dicht',[85,90],[32,112],['Bal aan de overkant? Schuif naar binnen.','Ballon de l’autre côté ? Rentre vers le milieu.'],[8,100],'WIDE',[76,84],'ALL'),
+ S('FB','dicht',[50,80],[26,108],['Bal in het midden. Blijf dicht bij je verdediger.','Ballon au milieu. Reste près de ton défenseur.'],[8,84],'WIDE',[50,70],'ALL'),
+ S('FB','dicht',[42,74],[15,104],['Kijk rond! Dek de vrije speler op jouw kant.','Regarde autour de toi ! Marque le joueur libre de ton côté.'],[42,62],'ALL',[46,116],'FAR',{f:[[11,90]]}),
+ // Central midfielder
+ S('CM','open',[40,112],[58,90],['Kom vrij tussen de tegenstanders. Toon je!','Démarque-toi entre les adversaires. Montre-toi !'],[42,104],'CLOSE',[44,48],'UP'),
+ S('CM','open',[12,70],[34,76],['Help je maat. Sta kort naast hem.','Aide ton équipier. Place-toi près de lui.'],[12,82],'CLOSE',[82,70],'FAR'),
+ S('CM','open',[50,42],[36,56],['Loop mee achter de aanval. Klaar voor het schot!','Suis l’attaque par derrière. Prêt pour la frappe !'],[50,98],'BACK',[50,32],'CLOSE'),
+ S('CM','open',[56,86],[30,64],['Bal gewonnen! Loop snel naar de vrije ruimte.','Ballon gagné ! Cours vite vers l’espace libre.'],[54,94],'CLOSE',[30,108],'BACK'),
+ S('CM','dicht',[50,68],[48,92],['Sta voor onze verdedigers. Sluit het midden.','Place-toi devant nos défenseurs. Ferme le milieu.'],[48,52],'BEHIND',[10,90],'WIDE'),
+ S('CM','dicht',[15,74],[36,90],['Schuif mee naar de kant van de bal.','Glisse du côté du ballon.'],[82,86],'FAR',[15,60],'BEHIND'),
+ S('CM','dicht',[50,54],[48,80],['Bal kwijt? Snel terug naar het midden!','Ballon perdu ? Reviens vite au milieu !'],[40,32],'BEHIND',[14,50],'WIDE'),
+ S('CM','dicht',[70,80],[42,102],['Kijk rond! Dek de vrije speler in het midden.','Regarde autour de toi ! Marque le joueur libre au milieu.'],[72,68],'ALL',[12,100],'WIDE',{f:[[40,90]]}),
+ // Wide player
+ S('W','open',[46,110],[8,74],['Ga breed! Sta bijna op de zijlijn.','Écarte-toi ! Va presque sur la ligne de touche.'],[38,98],'CLOSE',[46,60],'BLOCK'),
+ S('W','open',[50,75],[10,44],['Ga hoog en breed. Klaar voor de bal!','Monte et écarte-toi. Prêt pour le ballon !'],[40,68],'CLOSE',[10,98],'BACK'),
+ S('W','open',[85,50],[32,28],['Bal aan de overkant? Kom binnen, naar de tweede paal.','Ballon de l’autre côté ? Rentre vers le second poteau.'],[8,72],'WIDE',[80,38],'ALL'),
+ S('W','open',[10,92],[28,56],['Je maat komt op. Loop naar de vrije ruimte binnen.','Ton équipier monte. Va dans l’espace libre à l’intérieur.'],[10,82],'CLOSE',[72,60],'FAR'),
+ S('W','dicht',[15,74],[20,98],['Kom terug! Help op jouw kant.','Reviens ! Aide de ton côté.'],[15,58],'BEHIND',[50,38],'UP',{i11:[18,88]}),
+ S('W','dicht',[85,80],[32,94],['Bal aan de overkant? Schuif naar binnen.','Ballon de l’autre côté ? Rentre vers le milieu.'],[8,66],'WIDE',[80,70],'ALL',{i11:[30,80]}),
+ S('W','dicht',[50,70],[30,92],['Bal in het midden. Kom terug en maak het klein.','Ballon au milieu. Reviens et réduis l’espace.'],[8,48],'UP',[48,60],'ALL',{i11:[28,78]}),
+ S('W','dicht',[24,24],[30,41],['Hun verdediger is dicht bij jou. Zet druk!','Leur défenseur est près de toi. Mets la pression !'],[24,12],'BEHIND',[24,104],'BACK',{press:true}),
+ // Striker
+ S('ST','open',[50,112],[50,54],['Blijf hoog. Zo maak jij het veld lang.','Reste haut. Tu rends le terrain long.'],[50,94],'BACK',[14,100],'FAR'),
+ S('ST','open',[12,60],[45,32],['Loop voor het doel. Klaar voor de voorzet!','Va devant le but. Prêt pour le centre !'],[12,48],'CLOSE',[45,92],'BACK'),
+ S('ST','open',[50,76],[34,42],['Loop in de ruimte naast de verdediger.','Va dans l’espace à côté du défenseur.'],[50,66],'CLOSE',[50,14],'HIDE'),
+ S('ST','open',[88,46],[56,28],['Bal op de kant? Loop naar de eerste paal.','Ballon sur le côté ? Va au premier poteau.'],[86,34],'ALL',[20,72],'FAR'),
+ S('ST','dicht',[40,30],[42,46],['Jij bent de eerste verdediger. Zet druk!','Tu es le premier défenseur. Mets la pression !'],[40,16],'BEHIND',[42,92],'BACK',{press:true}),
+ S('ST','dicht',[50,8],[50,36],['Hun keeper heeft de bal. Sluit de pass naar het midden.','Leur gardien a le ballon. Ferme la passe vers le milieu.'],[50,18],'CLOSE',[50,84],'BACK',{press:true}),
+ S('ST','dicht',[50,64],[50,80],['Bal voorbij? Kom terug, achter de bal.','Ballon passé ? Reviens derrière le ballon.'],[50,40],'BEHIND',[10,40],'WIDE'),
+ S('ST','dicht',[15,60],[38,72],['Bal op de kant? Kom naar het midden om te helpen.','Ballon sur le côté ? Viens au milieu pour aider.'],[38,34],'UP',[85,50],'FAR')
+];
+const LEVELS=[
+ {n:['Open of dicht?','Ouvrir ou fermer ?'],s:['Kijk wie de bal heeft en kies','Regarde qui a le ballon et choisis'],time:[3,2.2]},
+ {n:['Kies je plek','Choisis ta place'],s:['Tik op de beste ring','Touche le meilleur cercle'],time:[4,3]},
+ {n:['Echte match','Vrai match'],s:['Tik zelf waar je gaat staan','Touche toi-même où te placer'],time:[4,2.8]}
+];
+const ACTIONS=8;
+
+/* ========== Helpers ========== */
+const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const MIRROR=(p,f)=>f?[100-p[0],p[1]]:p.slice();
+
+/* ========== Sound ========== */
+let soundOn=store.get('veld-sound',true),ac=null;
+function audio(){if(!soundOn)return null;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();return ac}catch(e){return null}}
+function tone(f,dur,type='sine',vol=.12,delay=0,slide=0){const a=audio();if(!a)return;const o=a.createOscillator(),g=a.createGain(),s=a.currentTime+delay;o.type=type;o.frequency.setValueAtTime(f,s);if(slide)o.frequency.linearRampToValueAtTime(f+slide,s+dur);g.gain.setValueAtTime(vol,s);g.gain.exponentialRampToValueAtTime(.001,s+dur);o.connect(g).connect(a.destination);o.start(s);o.stop(s+dur)}
+function roar(dur=1.8,vol=.2){const a=audio();if(!a)return;const n=Math.floor(a.sampleRate*dur),b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;const s=a.createBufferSource();s.buffer=b;const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=720;f.Q.value=.6;const g=a.createGain();g.gain.setValueAtTime(.001,a.currentTime);g.gain.linearRampToValueAtTime(vol,a.currentTime+.2);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+dur);s.connect(f).connect(g).connect(a.destination);s.start()}
+const sfx={whistle(){for(let i=0;i<3;i++)tone(2300,.09,'square',.035,i*.09)},good(){[523,659,784].forEach((f,i)=>tone(f,.18,'triangle',.14,i*.09))},goal(){[523,659,784,1047,1319].forEach((f,i)=>tone(f,.26,'triangle',.15,i*.09));roar(2.2,.22)},bad(){tone(240,.4,'sawtooth',.08,0,-110);roar(.7,.05)},kick(){tone(170,.09,'square',.09)}};
+function speak(s){if(!soundOn)return;try{const y=window.speechSynthesis;y.cancel();const u=new SpeechSynthesisUtterance(s);u.lang=lang==='fr'?'fr-BE':'nl-BE';u.rate=.98;const v=y.getVoices().find(x=>(lang==='fr'?/^fr/i:/^nl/i).test(x.lang));if(v)u.voice=v;y.speak(u)}catch(e){}}
+function setSoundIcons(){[$('soundHome'),$('soundPlay')].forEach(b=>b.textContent=soundOn?'🔊':'🔇')}
+function toggleSound(){soundOn=!soundOn;store.set('veld-sound',soundOn);setSoundIcons();if(!soundOn){try{speechSynthesis.cancel()}catch(e){}}}
+
+/* ========== Perspective camera ========== */
+const cv=$('cv'),ctx=cv.getContext('2d');
+const P=.45;let W=1,H=1,CX=0,HZ=0,GH=1,U=3,DPR=1,bg=null;
+const proj=(x,y)=>{const s=1/(1+P*(1-y/140));return{x:CX+(x-50)*U*s,y:HZ+GH*s,s}};
+const unproj=(sx,sy)=>{const s=(sy-HZ)/GH,y=140*(1-(1/s-1)/P);return{x:50+(sx-CX)/(U*s),y}};
+function resize(){
+  const r=$('wrap').getBoundingClientRect();if(r.width<10||r.height<10)return;
+  DPR=Math.min(window.devicePixelRatio||1,2);W=r.width;H=r.height;
+  cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';
+  const far=H*.13,near=H*.955,Hp=near-far,sf=1/(1+P);
+  GH=Hp/(1-sf);HZ=near-GH;U=Math.min(W*.0093,Hp*1.02/100);CX=W/2;bg=null;
+}
+new ResizeObserver(resize).observe($('wrap'));
+
+/* Seeded random keeps the crowd still between redraws. */
+const seeded=s=>()=>(s=(s*16807)%2147483647)/2147483647;
+function buildBackground(){
+  const fmt=FORMATS[G_fmt()];
+  const c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;const g=c.getContext('2d');g.scale(DPR,DPR);
+  const rand=seeded(4242);
+  /* Sky and stands */
+  const sky=g.createLinearGradient(0,0,0,H*.3);sky.addColorStop(0,'#050a18');sky.addColorStop(1,'#14233f');g.fillStyle=sky;g.fillRect(0,0,W,H);
+  const crowd=['#e0212f','#ffffff','#f4c542','#3f7be0','#1a1a1a','#ff7a59','#9fb6d6','#7a2f9e'];
+  const roofY=H*.018;
+  g.fillStyle='#0a1222';g.fillRect(0,0,W,roofY+3);
+  const count=Math.round(W*H*.11);
+  for(let i=0;i<count;i++){
+    const x=rand()*W,y=roofY+rand()*(H-roofY);
+    const sz=.9+(y/H)*1.5;
+    g.globalAlpha=.4+rand()*.45;g.fillStyle=crowd[Math.floor(rand()*crowd.length)];
+    g.fillRect(x,y,sz,sz*1.25);
+  }
+  g.globalAlpha=1;
+  /* Stand tiers */
+  g.strokeStyle='rgba(5,10,24,.65)';g.lineWidth=1.2;
+  for(let i=1;i<7;i++){const y=roofY+i*(proj(0,-7).y-roofY)/7;g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke()}
+  /* Grass apron, row by row */
+  const a=[proj(-7,-6),proj(107,-6),proj(107,147),proj(-7,147)];
+  g.save();g.beginPath();g.moveTo(a[0].x,a[0].y);g.lineTo(a[1].x,a[1].y);g.lineTo(a[2].x,H+4);g.lineTo(a[3].x,H+4);g.closePath();g.clip();
+  const bands=fmt.players===5?10:fmt.players===8?12:14;
+  for(let sy=Math.floor(a[0].y);sy<=H+2;sy++){
+    const q=unproj(CX,sy+.5);const inPitch=q.y>=3&&q.y<=137;
+    const band=Math.floor(q.y/(140/bands));
+    const col=!inPitch?'#1f6c3b':(band%2?'#2c9455':'#268549');
+    g.fillStyle=col;g.fillRect(0,sy,W,1.6);
+  }
+  /* Grass grain */
+  for(let i=0;i<Math.round(W*H*.06);i++){
+    const x=rand()*W,y=a[0].y+rand()*(H-a[0].y);const q=y/H;
+    g.strokeStyle=rand()<.5?'rgba(255,255,255,.07)':'rgba(0,30,10,.13)';g.lineWidth=.7;
+    g.beginPath();g.moveTo(x,y);g.lineTo(x+(rand()-.5)*1.2,y-1-q*2.2);g.stroke();
+  }
+  /* Floodlight pools */
+  g.globalCompositeOperation='screen';
+  [[.18,.1],[.82,.1],[.5,.72]].forEach(([fx,fy],i)=>{const rg=g.createRadialGradient(W*fx,H*fy,0,W*fx,H*fy,H*(i==2?.55:.62));rg.addColorStop(0,i==2?'rgba(180,255,200,.14)':'rgba(255,255,225,.24)');rg.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=rg;g.fillRect(0,0,W,H)});
+  g.globalCompositeOperation='source-over';
+  /* Line markings */
+  const seg=(x1,y1,x2,y2)=>{const n=10;for(let i=0;i<n;i++){const A=proj(x1+(x2-x1)*i/n,y1+(y2-y1)*i/n),B=proj(x1+(x2-x1)*(i+1)/n,y1+(y2-y1)*(i+1)/n);g.lineWidth=Math.max(1,.5*U*A.s);g.beginPath();g.moveTo(A.x,A.y);g.lineTo(B.x,B.y);g.stroke()}};
+  const arc=(cx,cy,rad,a0,a1)=>{const n=26;for(let i=0;i<n;i++){const u0=a0+(a1-a0)*i/n,u1=a0+(a1-a0)*(i+1)/n;const A=proj(cx+Math.cos(u0)*rad,cy+Math.sin(u0)*rad),B=proj(cx+Math.cos(u1)*rad,cy+Math.sin(u1)*rad);g.lineWidth=Math.max(1,.5*U*A.s);g.beginPath();g.moveTo(A.x,A.y);g.lineTo(B.x,B.y);g.stroke()}};
+  g.strokeStyle='rgba(255,255,255,.9)';g.lineCap='round';
+  seg(3,3,97,3);seg(97,3,97,137);seg(97,137,3,137);seg(3,137,3,3);seg(3,70,97,70);
+  arc(50,70,fmt.players===5?10:11,0,Math.PI*2);
+  fmt.box.forEach(([l,r,d])=>{seg(l,3,l,3+d);seg(l,3+d,r,3+d);seg(r,3+d,r,3);seg(l,137,l,137-d);seg(l,137-d,r,137-d);seg(r,137-d,r,137)});
+  if(fmt.players===11){arc(50,20,11,.75,Math.PI-.75);arc(50,120,11,Math.PI+.75,2*Math.PI-.75)}
+  [[3,3,0,Math.PI/2],[97,3,Math.PI/2,Math.PI],[3,137,-Math.PI/2,0],[97,137,Math.PI,1.5*Math.PI]].forEach(([x,y,s0,s1])=>arc(x,y,2.5,s0,s1));
+  g.fillStyle='#fff';[[50,70]].concat(fmt.players>=8?[[50,18],[50,122]]:[]).forEach(([x,y])=>{const o=proj(x,y);g.beginPath();g.ellipse(o.x,o.y,.9*U*o.s,.6*U*o.s,0,0,7);g.fill()});
+  /* Painted direction words */
+  g.textAlign='center';g.textBaseline='middle';g.fillStyle='rgba(255,255,255,.26)';
+  [[t('HUN DOEL','LEUR BUT'),fmt.box[0][2]+9],[t('ONS DOEL','NOTRE BUT'),131-fmt.box[0][2]]].forEach(([w,y])=>{const o=proj(50,y);g.font=`${3.8*U*o.s}px "Lilita One","Arial Black",sans-serif`;g.save();g.translate(o.x,o.y);g.scale(1,.72);g.fillText(w,0,0);g.restore()});
+  g.restore();
+  /* Advertising boards */
+  const b0=proj(-7,-6),b1=proj(107,-6),bh=H*.034;
+  const gb=g.createLinearGradient(0,b0.y-bh,0,b0.y);gb.addColorStop(0,'#c31a28');gb.addColorStop(1,'#7f101b');g.fillStyle=gb;g.fillRect(b0.x-2,b0.y-bh,b1.x-b0.x+4,bh);
+  g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';g.font=`${bh*.62}px "Lilita One","Arial Black",sans-serif`;
+  const slogan=t('OPEN  ·  DICHT  ·  OPEN  ·  DICHT  ·  OPEN','OUVRIR  ·  FERMER  ·  OUVRIR  ·  FERMER');g.fillText(slogan,CX,b0.y-bh/2,b1.x-b0.x-10);
+  /* Light towers */
+  [[W*.1,H*.055],[W*.9,H*.055]].forEach(([x,y])=>{
+    const glow=g.createRadialGradient(x,y,0,x,y,W*.2);glow.addColorStop(0,'rgba(255,255,235,.9)');glow.addColorStop(.1,'rgba(255,255,235,.38)');glow.addColorStop(1,'rgba(255,255,235,0)');
+    g.fillStyle=glow;g.fillRect(x-W*.2,y-W*.2,W*.4,W*.4);
+    g.fillStyle='#0a1222';g.fillRect(x-W*.042,y-H*.016,W*.084,H*.032);
+    g.fillStyle='#fffde0';for(let i=0;i<4;i++)for(let j=0;j<2;j++)g.fillRect(x-W*.036+i*W*.019,y-H*.012+j*H*.012,W*.013,H*.009);
+  });
+  /* Far goal */
+  drawGoal(g,3,fmt,true);
+  /* Vignette */
+  const v=g.createRadialGradient(CX,H*.55,H*.35,CX,H*.55,H*.82);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(2,5,14,.5)');g.fillStyle=v;g.fillRect(0,0,W,H);
+  bg=c;
+}
+function drawGoal(g,y,fmt,far){
+  const [l,r]=fmt.line,dep=far?-5:5;
+  const a=proj(l,y),b=proj(r,y),a2=proj(l,y+dep),b2=proj(r,y+dep);
+  const h=9*U*a.s*(fmt.players===11?.9:1);
+  g.lineCap='round';
+  /* Net */
+  g.strokeStyle='rgba(255,255,255,.26)';g.lineWidth=.6;
+  const top2=h*.72;
+  for(let i=0;i<=14;i++){const f=i/14;const bx=a2.x+(b2.x-a2.x)*f,by=a2.y;g.beginPath();g.moveTo(bx,by);g.lineTo(bx,by-top2);g.lineTo(a.x+(b.x-a.x)*f,a.y-h);g.stroke()}
+  for(let i=0;i<=5;i++){const f=i/5;g.beginPath();g.moveTo(a2.x,a2.y-top2*f);g.lineTo(b2.x,b2.y-top2*f);g.stroke()}
+  for(let i=1;i<=3;i++){const f=i/4;g.beginPath();g.moveTo(a.x+(a2.x-a.x)*f,a.y-h+(h-top2)*f);g.lineTo(b.x+(b2.x-b.x)*f,b.y-h+(h-top2)*f);g.stroke()}
+  /* Frame */
+  g.strokeStyle='#fff';g.lineWidth=Math.max(1.5,.8*U*a.s);
+  g.beginPath();g.moveTo(a.x,a.y);g.lineTo(a.x,a.y-h);g.lineTo(b.x,b.y-h);g.lineTo(b.x,b.y);g.stroke();
+}
+
+/* ========== Tweens ========== */
+let clock=0,tweens=[];
+function tween(o,to,dur,ease='io'){return new Promise(res=>{
+  tweens=tweens.filter(x=>{if(x.o===o){x.res();return false}return true});
+  const from={};for(const k in to)from[k]=o[k];
+  tweens.push({o,from,to,t0:clock,dur:Math.max(1,reduced?dur*.6:dur),ease,res});
+})}
+const wait=ms=>new Promise(res=>tweens.push({o:{},from:{},to:{},t0:clock,dur:ms,ease:'l',res}));
+function stepTweens(){const done=[];tweens=tweens.filter(x=>{const p=clamp((clock-x.t0)/x.dur,0,1),e=x.ease==='l'?p:x.ease==='out'?1-(1-p)*(1-p):p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;for(const k in x.to)x.o[k]=x.from[k]+(x.to[k]-x.from[k])*e;if(p>=1){done.push(x.res);return false}return true});done.forEach(f=>f())}
+
+/* ========== Scene state ========== */
+const SKIN=['#f2c9a5','#8d5a3a','#c98d62','#5c3a26','#e6b48a','#a56f49'];
+let us=[],them=[],me=null,gkUs=null,gkThem=null;
+const ball={x:50,y:70,z:0,owner:null,spin:0,from:null,to:null,h:0};
+let view={},particles=[],flash=0,shake=0,bulbs=0;
+function mkActor(team,x,y,i,extra={}){return{team,x,y,px:x,py:y,phase:Math.random()*6,move:0,skin:SKIN[(i*7+(team==='us'?1:3))%SKIN.length],hair:i%3,...extra}}
+function buildTeams(){
+  const f=FORMATS[setup.fmt];
+  us=f.slots.map((s,i)=>mkActor('us',s.x,s.y,i,{slot:s,gk:s.role==='GK',no:s.no}));
+  them=f.slots.map((s,i)=>mkActor('them',s.x,140-s.y,i,{slot:s,gk:s.role==='GK',no:s.no}));
+  me=us.find(a=>a.slot.id===setup.pos);me.me=true;gkUs=us[0];gkThem=them[0];
+}
+function shape(slots,attackUp,possess,bx,by){
+  /* Rule of the game in one place: with the ball the team stretches, without it the team shrinks towards its goal. */
+  const inv=y=>attackUp?y:140-y,B=inv(by);
+  return slots.map(s=>{
+    if(s.role==='GK')return{x:50+(bx-50)*.12,y:inv(possess?clamp(112+(B-70)*.2,100,131):clamp(128+(B-70)*.08,122,134))};
+    let x,y;
+    if(possess){x=50+(s.x-50)*1.2+(bx-50)*.14;y=s.y+(B-70)*.5-7}
+    else{x=50+(s.x-50)*.72+(bx-50)*.32;y=85+(s.y-85)*.68+(B-70)*.42}
+    return{x:clamp(x,6,94),y:inv(clamp(y,12,128))};
+  });
+}
+function compose(sit,slot){
+  const f=FORMATS[setup.fmt];
+  const flip=slot.x>50||(slot.x===50&&Math.random()<.5);
+  const ball0=MIRROR(sit.ball,flip);
+  let idealSrc=(setup.fmt===11&&sit.i11)?sit.i11:sit.ideal;
+  const ideal=MIRROR(idealSrc,flip);
+  const decoys=sit.d.map(([p,txt])=>({x:MIRROR(p,flip)[0],y:p[1],tip:txt,block:txt===D.BLOCK}));
+  const forced=(sit.f||[]).map(p=>MIRROR(p,flip));
+  decoys.filter(d=>d.block).forEach(d=>forced.push([d.x,d.y]));
+  const isOpen=sit.s==='open',bx=ball0[0],by=ball0[1];
+  const U_=shape(f.slots,true,isOpen,bx,by),T_=shape(f.slots,false,!isOpen,bx,by);
+  const pos={us:U_.map(o=>({...o})),them:T_.map(o=>({...o}))};
+  /* The carrier stands on the ball. Keepers carry only when the ball is at their goal. */
+  const nearest=(list,skip)=>{let bi=-1,bd=1e9;list.forEach((o,i)=>{if(skip(i))return;const v=Math.hypot(o.x-bx,o.y-by);if(v<bd){bd=v;bi=i}});return bi};
+  const meIdx=f.slots.findIndex(s=>s.id===setup.pos);
+  let carrier;
+  if(isOpen){carrier=by>126&&meIdx!==0?0:nearest(pos.us,i=>i===meIdx||i===0);if(carrier<0)carrier=meIdx===0?1:0;pos.us[carrier]={x:bx,y:by}}
+  else{carrier=by<14?0:nearest(pos.them,i=>i===0);pos.them[carrier]={x:bx,y:by}}
+  /* Forced opponents: the free player to mark, or the one in the way. */
+  const fixedThem=new Set([isOpen?-1:carrier]);
+  forced.forEach(p=>{let bi=-1,bd=1e9;pos.them.forEach((o,i)=>{if(i===0||fixedThem.has(i))return;const v=Math.hypot(o.x-p[0],o.y-p[1]);if(v<bd){bd=v;bi=i}});if(bi>=0){pos.them[bi]={x:p[0],y:p[1]};fixedThem.add(bi)}});
+  /* A teammate presses the ball unless this moment is yours to press. */
+  let presser=-1;
+  if(!isOpen&&!sit.press){const i=nearest(pos.us,j=>j===meIdx||j===0);if(i>=0&&Math.hypot(pos.us[i].x-bx,pos.us[i].y-by)<42){presser=i;const o={x:bx+(50-bx)*.06,y:clamp(by+9,10,128)};const dI=Math.hypot(o.x-ideal[0],o.y-ideal[1]);if(dI<14){o.x=clamp(ideal[0]+(o.x>=ideal[0]?14:-14),6,94)}pos.us[i]=o}}
+  const idealP={x:ideal[0],y:ideal[1]};
+  /* Keep everyone clear: of the ideal spot, of the pass lane, and of each other. */
+  const fixedUs=new Set([0,meIdx]);if(isOpen)fixedUs.add(carrier);if(presser>=0)fixedUs.add(presser);
+  const everyone=[...pos.us.map((o,i)=>({o,fixed:fixedUs.has(i)})),...pos.them.map((o,i)=>({o,fixed:i===0||fixedThem.has(i)}))];
+  const myO=pos.us[meIdx];everyone.forEach(e=>{if(e.o===myO)e.skip=true});
+  const lane=isOpen?{a:{x:bx,y:by},b:idealP}:null;
+  const minD=f.players===11?9:11;
+  for(let it=0;it<10;it++){
+    everyone.forEach((e,i)=>{
+      if(e.skip||e.fixed)return;
+      const d0=Math.hypot(e.o.x-idealP.x,e.o.y-idealP.y);
+      if(d0<15){const v=d0||1;e.o.x+=(e.o.x-idealP.x)/v*(15-d0);e.o.y+=(e.o.y-idealP.y)/v*(15-d0)}
+      if(lane&&i>=pos.us.length){
+        const ax=lane.b.x-lane.a.x,ay=lane.b.y-lane.a.y,L=ax*ax+ay*ay||1,u=clamp(((e.o.x-lane.a.x)*ax+(e.o.y-lane.a.y)*ay)/L,.05,.95);
+        const qx=lane.a.x+ax*u,qy=lane.a.y+ay*u,d=Math.hypot(e.o.x-qx,e.o.y-qy);
+        if(d<8){const v=d||1;const nx=d?(e.o.x-qx)/v:-ay/Math.sqrt(L),ny=d?(e.o.y-qy)/v:ax/Math.sqrt(L);e.o.x+=nx*(8-d);e.o.y+=ny*(8-d)}
+      }
+      everyone.forEach((q,j)=>{if(i===j||q.skip)return;const dx=e.o.x-q.o.x,dy=e.o.y-q.o.y,dd=Math.hypot(dx,dy);if(dd<minD&&dd>0){e.o.x+=dx/dd*(minD-dd)*.5;e.o.y+=dy/dd*(minD-dd)*.5}});
+      e.o.x=clamp(e.o.x,5,95);e.o.y=clamp(e.o.y,10,130);
+    });
+  }
+  /* Your own start: your usual spot, never already on the answer. */
+  let sx=slot.x,sy=slot.y;
+  const minStart=slot.role==='GK'?11:22;
+  const dS=Math.hypot(sx-ideal[0],sy-ideal[1]);
+  if(dS<minStart){const v=dS||1,nx=dS?(sx-ideal[0])/v:0,ny=dS?(sy-ideal[1])/v:1;sx=clamp(ideal[0]+nx*minStart,6,94);sy=clamp(ideal[1]+ny*minStart,10,136)}
+  pos.us[meIdx]={x:sx,y:sy};
+  return{s:sit.s,ball:ball0,ideal:idealP,tip:sit.tip,decoys,pos,carrier,isOpen,meIdx,presser,press:!!sit.press,role:slot.role};
+}
+function pickSituations(){
+  const slot=FORMATS[setup.fmt].slots.find(s=>s.id===setup.pos);
+  const pool=SITS.filter(x=>x.role===slot.role);
+  const op=shuffle(pool.filter(x=>x.s==='open')).slice(0,ACTIONS/2),di=shuffle(pool.filter(x=>x.s==='dicht')).slice(0,ACTIONS/2);
+  const out=[];let last='',run=0;
+  while(op.length||di.length){
+    let src=!op.length?di:!di.length?op:(Math.random()<.5?op:di);
+    if(run>=2&&((src===op&&last==='open'&&di.length)||(src===di&&last==='dicht'&&op.length)))src=src===op?di:op;
+    const c=src.pop();run=c.s===last?run+1:1;last=c.s;out.push(c);
+  }
+  return out;
+}
+
+/* ========== Drawing ========== */
+function groundEllipse(x,y,r,fill,stroke,lw,dash){
+  const o=proj(x,y),c=ctx,R0=r*U*o.s;
+  c.beginPath();c.ellipse(o.x,o.y,R0,R0*.62,0,0,7);
+  if(fill){c.fillStyle=fill;c.fill()}
+  if(stroke){c.strokeStyle=stroke;c.lineWidth=lw;if(dash)c.setLineDash(dash);c.stroke();c.setLineDash([])}
+}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function drawPlayer(a){
+  const c=ctx,o=proj(a.x,a.y),sz=FORMATS[setup.fmt].size,u=U*o.s*sz*1.02*(a.me?1.12:1),px=o.x,py=o.y;
+  const swing=Math.sin(a.phase)*a.move,arm=Math.cos(a.phase)*a.move;
+  const us_=a.team==='us';
+  const shirt=a.gk?(us_?'#17a673':'#e8d93e'):(us_?'#e0212f':'#2a6be2');
+  const shirtHi=a.gk?(us_?'#38d39b':'#fbf08a'):(us_?'#ff5c66':'#5c95ff');
+  const shorts=a.gk?'#132':(us_?'#141822':'#f4f6fb');
+  const sock=a.gk?shirt:(us_?'#ffffff':'#2a6be2');
+  /* Shadow, thrown away from the floodlights */
+  c.fillStyle='rgba(0,10,5,.42)';c.beginPath();c.ellipse(px+1.1*u,py+.25*u,3.4*u,1.35*u,-.1,0,7);c.fill();
+  /* Legs */
+  c.lineCap='round';
+  [[-1,swing],[1,-swing]].forEach(([sd,sw])=>{
+    const hipX=px+sd*1.05*u,hipY=py-4.8*u,fx=px+sd*1.1*u+sw*1.9*u,fy=py-Math.max(0,-sw)*1.1*u;
+    c.strokeStyle=a.skin;c.lineWidth=1.3*u;c.beginPath();c.moveTo(hipX,hipY);c.lineTo((hipX+fx)/2,(hipY+fy)/2);c.stroke();
+    c.strokeStyle=sock;c.lineWidth=1.25*u;c.beginPath();c.moveTo((hipX+fx)/2,(hipY+fy)/2);c.lineTo(fx,fy-.5*u);c.stroke();
+    c.strokeStyle='#0c0f16';c.lineWidth=1.25*u;c.beginPath();c.moveTo(fx-.4*u,fy);c.lineTo(fx+.6*u,fy);c.stroke();
+  });
+  /* Arms behind the shirt */
+  [[-1,arm],[1,-arm]].forEach(([sd,sw])=>{c.strokeStyle=a.skin;c.lineWidth=1.05*u;c.beginPath();c.moveTo(px+sd*2.5*u,py-9.2*u);c.lineTo(px+sd*3.2*u+sw*1.1*u,py-6.1*u);c.stroke()});
+  /* Shorts */
+  c.fillStyle=shorts;roundRect(c,px-2.35*u,py-6.5*u,4.7*u,2.3*u,.6*u);c.fill();
+  /* Shirt */
+  const gr=c.createLinearGradient(px-2.6*u,0,px+2.6*u,0);gr.addColorStop(0,shirtHi);gr.addColorStop(.55,shirt);gr.addColorStop(1,shirt);
+  c.fillStyle=gr;roundRect(c,px-2.65*u,py-10.3*u,5.3*u,4.5*u,1.1*u);c.fill();
+  if(us_&&!a.gk){c.fillStyle='rgba(255,255,255,.95)';c.fillRect(px-.65*u,py-10.25*u,1.3*u,4.4*u)}
+  /* Sleeves */
+  c.strokeStyle=shirt;c.lineWidth=1.45*u;[-1,1].forEach(sd=>{c.beginPath();c.moveTo(px+sd*2.4*u,py-9.6*u);c.lineTo(px+sd*2.9*u,py-8.2*u);c.stroke()});
+  /* Number on the back or face to the camera */
+  if(u>1.6){c.font=`${2.5*u}px "Lilita One","Arial Black",sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineWidth=.55*u;c.strokeStyle=us_&&!a.gk?shirt:'rgba(0,0,0,.45)';c.fillStyle=us_&&!a.gk?'#141822':'#fff';if(!us_||a.gk){c.strokeText(a.no,px,py-8*u)}c.fillText(a.no,px,py-8*u)}
+  /* Head */
+  c.fillStyle=a.skin;c.beginPath();c.arc(px,py-12*u,2*u,0,7);c.fill();
+  c.fillStyle=['#1c1410','#3b2413','#0f0f12'][a.hair];c.beginPath();
+  if(us_){c.arc(px,py-12*u,2.03*u,Math.PI*.98,Math.PI*2.02);c.lineTo(px+2*u,py-11.5*u);c.quadraticCurveTo(px,py-10.4*u,px-2*u,py-11.5*u);c.closePath();c.fill()}
+  else{c.arc(px,py-12.2*u,2.03*u,Math.PI*1.02,Math.PI*1.98);c.closePath();c.fill();c.fillStyle='#0c0f16';c.beginPath();c.arc(px-.75*u,py-11.8*u,.28*u,0,7);c.arc(px+.75*u,py-11.8*u,.28*u,0,7);c.fill()}
+  if(a.me){
+    const bob=reduced?0:Math.sin(clock/190)*1.1*u;
+    const top=py-15.4*u+bob;
+    /* Arrow */
+    c.fillStyle='#ffe34d';c.strokeStyle='#141822';c.lineWidth=Math.max(1,.45*u);c.beginPath();c.moveTo(px,top+1.1*u);c.lineTo(px-1.6*u,top-1*u);c.lineTo(px+1.6*u,top-1*u);c.closePath();c.fill();c.stroke();
+    /* Name plate */
+    const name=setup.name.toUpperCase(),fs=Math.max(11,2.9*u);c.font=`${fs}px "Lilita One","Arial Black",sans-serif`;
+    const w=c.measureText(name).width+fs*.9,h=fs*1.45,lx=clamp(px,w/2+3,W-w/2-3);let ly=top-1*u-h-2;if(ly<3)ly=py+2.2*u;
+    c.fillStyle='#ffe34d';roundRect(c,lx-w/2,ly,w,h,h*.3);c.fill();c.fillStyle='#141822';c.textAlign='center';c.textBaseline='middle';c.fillText(name,lx,ly+h*.53);
+  }
+}
+function drawBall(){
+  const c=ctx;
+  if(ball.owner){const a=ball.owner,dir=a.team==='us'?-1:1;ball.x=a.x+1.5;ball.y=a.y+dir*.9;ball.z=0}
+  else if(ball.from&&ball.to){const L=Math.hypot(ball.to.x-ball.from.x,ball.to.y-ball.from.y)||1,f=clamp(Math.hypot(ball.x-ball.from.x,ball.y-ball.from.y)/L,0,1);ball.z=ball.h*4*f*(1-f)}
+  const o=proj(ball.x,ball.y),sz=FORMATS[setup.fmt].size,r=Math.max(3,2.1*U*o.s*sz);
+  c.fillStyle='rgba(0,10,5,.45)';c.beginPath();c.ellipse(o.x+ball.z*.25*U*o.s,o.y+.2*r,r*1.05,r*.5,0,0,7);c.fill();
+  const by=o.y-r*.9-ball.z*U*o.s;
+  const g=c.createRadialGradient(o.x-r*.35,by-r*.4,r*.1,o.x,by,r);g.addColorStop(0,'#fff');g.addColorStop(1,'#c8ced8');
+  c.fillStyle=g;c.beginPath();c.arc(o.x,by,r,0,7);c.fill();c.strokeStyle='#20242c';c.lineWidth=Math.max(.6,r*.13);c.stroke();
+  c.fillStyle='#14171f';for(let i=0;i<3;i++){const an=ball.spin+i*2.1;c.beginPath();c.arc(o.x+Math.cos(an)*r*.48,by+Math.sin(an)*r*.48,r*.25,0,7);c.fill()}
+}
+function draw(){
+  if(!bg)buildBackground();
+  const c=ctx;c.setTransform(DPR,0,0,DPR,0,0);
+  if(shake>0){c.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.9;if(shake<.3)shake=0}
+  c.drawImage(bg,0,0,W,H);
+  if(bulbs>0){bulbs--;c.fillStyle='#fff';for(let i=0;i<16;i++){c.globalAlpha=Math.random();c.beginPath();c.arc(Math.random()*W,Math.random()*H*.11,1.2+Math.random()*1.6,0,7);c.fill()}c.globalAlpha=1}
+  /* Team shape on the grass */
+  if(view.hull){
+    const pts=hull(us.filter(a=>!a.gk).map(a=>({x:a.x,y:a.y})));
+    c.beginPath();pts.forEach((p,i)=>{const o=proj(p.x,p.y);i?c.lineTo(o.x,o.y):c.moveTo(o.x,o.y)});c.closePath();
+    c.globalAlpha=.24;c.fillStyle=view.hullColor;c.fill();c.globalAlpha=1;c.strokeStyle=view.hullColor;c.lineWidth=2;c.setLineDash([7,5]);c.stroke();c.setLineDash([]);
+  }
+  /* Carrier and you */
+  if(ball.owner&&ball.owner!==me){const a=ball.owner;groundEllipse(a.x,a.y,4.6*FORMATS[setup.fmt].size,'rgba(255,255,255,.2)','#ffffff',1.6)}
+  if(me){const pulse=reduced?0:Math.sin(clock/180)*.8;groundEllipse(me.x,me.y,(5.6+pulse)*FORMATS[setup.fmt].size,'rgba(255,227,77,.28)','#ffe34d',2.4)}
+  if(view.rings)view.rings.forEach(r=>{const pulse=reduced?0:Math.sin(clock/170)*.7;groundEllipse(r.x,r.y,7.5+pulse,'rgba(255,255,255,.3)','#fff',2,[7,5])});
+  if(view.ghost){
+    const g=view.ghost,a=proj(me.x,me.y),b=proj(g.x,g.y);
+    c.strokeStyle='#74e08a';c.lineWidth=3;c.setLineDash([9,7]);c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();c.setLineDash([]);
+    groundEllipse(g.x,g.y,7,'rgba(116,224,138,.42)','#b9f5c5',2.6);
+    const fs=Math.max(13,4.3*U*b.s);c.font=`${fs}px "Lilita One","Arial Black",sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineWidth=3;c.strokeStyle='#0b0f18';const lab=t('HIER!','ICI !');c.strokeText(lab,clamp(b.x,28,W-28),b.y-fs*1.2);c.fillStyle='#d6ffe0';c.fillText(lab,clamp(b.x,28,W-28),b.y-fs*1.2);
+  }
+  if(view.marker){const o=proj(view.marker.x,view.marker.y),m=3*U*o.s;c.strokeStyle='#ffe34d';c.lineWidth=3;c.beginPath();c.moveTo(o.x-m,o.y-m*.6);c.lineTo(o.x+m,o.y+m*.6);c.moveTo(o.x+m,o.y-m*.6);c.lineTo(o.x-m,o.y+m*.6);c.stroke()}
+  /* Depth-sorted cast */
+  const all=[...us,...them];
+  all.forEach(a=>{const v=Math.hypot(a.x-a.px,a.y-a.py);a.px=a.x;a.py=a.y;const target=clamp(v*2.2,0,1);a.move+=(target-a.move)*.2;a.phase+=v*.55+.02});
+  const castBall={y:ball.y,isBall:true};
+  ball.spin+=ball.owner?.08:.32;
+  [...all,castBall].sort((p,q)=>p.y-q.y).forEach(x=>x.isBall?drawBall():drawPlayer(x));
+  /* Near goal in front of everyone */
+  drawGoal(c,137,FORMATS[setup.fmt],false);
+  /* Confetti and flash */
+  particles=particles.filter(p=>p.life>0);particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.09;p.vx*=.99;p.rot+=.2;p.life--;c.save();c.translate(p.x,p.y);c.rotate(p.rot);c.fillStyle=p.col;c.fillRect(-p.s,-p.s*.6,p.s*2,p.s*1.2);c.restore()});
+  if(flash>0){c.fillStyle=`rgba(255,255,255,${flash})`;c.fillRect(0,0,W,H);flash=Math.max(0,flash-.035)}
+  c.setTransform(1,0,0,1,0,0);
+}
+function hull(pts){const p=pts.slice().sort((a,b)=>a.x-b.x||a.y-b.y);if(p.length<3)return p;const cr=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x),lo=[],up=[];for(const q of p){while(lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q)}for(const q of p.slice().reverse()){while(up.length>1&&cr(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q)}return lo.slice(0,-1).concat(up.slice(0,-1))}
+function celebrate(){if(reduced)return;flash=.55;shake=9;bulbs=70;for(let i=0;i<130;i++){const a=-Math.PI/2+(Math.random()-.5)*1.8,v=3+Math.random()*7;particles.push({x:W/2+(Math.random()-.5)*W*.5,y:H*.2,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:80+Math.random()*50,col:rnd(['#e0212f','#fff','#ffe34d','#74e08a']),s:2+Math.random()*2.6,rot:Math.random()*6})}}
+
+/* ========== Setup flow ========== */
+const setup={name:store.get('veld-name',''),club:store.get('veld-club',''),fmt:store.get('veld-fmt',5),pos:store.get('veld-pos',null),step:1};
+if(!FORMATS[setup.fmt])setup.fmt=5;
+const G_fmt=()=>setup.fmt;
+let G=null,deciding=null,token=0,goTimer=0,advance=null,tempo=store.get('veld-tempo','match');
+const slotOf=()=>FORMATS[setup.fmt].slots.find(s=>s.id===setup.pos);
+const roleName=s=>t(s.nl,s.fr);
+function show(id){['setup','play','result'].forEach(s=>$(s).hidden=s!==id);if(id==='play')resize()}
+function goStep(n){
+  setup.step=n;[1,2,3,4].forEach(i=>$('s'+i).hidden=i!==n);
+  [...$('steps').children].forEach((el,i)=>el.classList.toggle('on',i<n));
+  $('back').hidden=n===1;
+  if(n===2)renderFormats();if(n===3)renderPicker();if(n===4)renderLevels();
+  if(n===1)updateHero();
+  $('s'+n).scrollTop=0;
+}
+function updateHero(){const v=$('nameInput').value.trim();$('heroName').textContent=v||t('Jij','Toi')}
+function renderFormats(){
+  const box=$('formats');box.innerHTML='';
+  [5,8,11].forEach(k=>{
+    const f=FORMATS[k],b=document.createElement('button');b.className='fmt';b.id='fmt'+k;
+    const dots=f.slots.map(s=>`<circle cx="${s.x}" cy="${s.y*.7}" r="${k===11?4:5}" fill="${s.role==='GK'?'#ffe34d':'#e0212f'}" stroke="#fff" stroke-width="1.2"/>`).join('');
+    b.innerHTML=`<svg viewBox="0 0 100 98" aria-hidden="true"><rect width="100" height="98" fill="#2a8d4f"/><path d="M0 49H100" stroke="#fff" stroke-opacity=".7"/><circle cx="50" cy="49" r="9" fill="none" stroke="#fff" stroke-opacity=".7"/>${dots}</svg><span><strong>${p2(f.name)}</strong><small>${p2(f.sub)}</small></span>`;
+    b.onclick=()=>{if(setup.fmt!==k)setup.pos=null;setup.fmt=k;store.set('veld-fmt',k);goStep(3)};
+    box.appendChild(b);
+  });
+}
+function renderPicker(){
+  const box=$('picker'),f=FORMATS[setup.fmt];box.innerHTML='';
+  const my=y=>((y-22)/118*100);
+  box.insertAdjacentHTML('beforeend',`<svg viewBox="0 0 100 118" aria-hidden="true" preserveAspectRatio="none"><g fill="none" stroke="#fff" stroke-opacity=".8" stroke-width=".6"><path d="M0 48H100"/><circle cx="50" cy="48" r="10"/><rect x="24" y="96" width="52" height="19"/><rect x="38" y="115" width="24" height="3" fill="#fff" fill-opacity=".5"/></g></svg>`);
+  f.slots.forEach(s=>{
+    const b=document.createElement('button');b.className='spot';b.id='spot-'+s.id;
+    b.style.left=clamp(s.x,10,90)+'%';b.style.top=clamp(my(s.y),8,94)+'%';
+    b.setAttribute('aria-pressed',setup.pos===s.id);b.setAttribute('aria-label',roleName(s));
+    b.innerHTML=`<b>${s.no}</b><span>${t(s.sn,s.sf)}</span>`;
+    b.onclick=()=>{setup.pos=s.id;store.set('veld-pos',s.id);renderPicker()};
+    box.appendChild(b);
+  });
+  const sel=slotOf();
+  $('roleInfo').innerHTML=sel?`<strong></strong><span></span>`:`<span></span>`;
+  if(sel){$('roleInfo').querySelector('strong').textContent=roleName(sel);$('roleInfo').querySelector('span').textContent=p2(ROLE_INFO[sel.role])}
+  else $('roleInfo').querySelector('span').textContent=t('Op welke plek speel jij in de match?','À quelle place joues-tu en match ?');
+  $('toLevel').disabled=!sel;
+}
+const starText=n=>'★'.repeat(n)+'☆'.repeat(3-n);
+function renderLevels(){
+  const sel=slotOf();
+  $('summary').textContent=`${setup.name} · ${p2(FORMATS[setup.fmt].name)} · ${sel?roleName(sel):''}`;
+  const box=$('levels');box.innerHTML='';
+  LEVELS.forEach((l,i)=>{
+    const n=store.get(`veld-stars-${setup.fmt}-${i}`,0),b=document.createElement('button');b.className='level';b.id='level'+i;
+    b.innerHTML=`<span class="num">${i+1}</span><span><strong>${p2(l.n)}</strong><small>${p2(l.s)}</small></span><span class="stars" aria-label="${n}/3">${starText(n)}</span>`;
+    b.onclick=()=>startMatch(i);box.appendChild(b);
+  });
+}
+function setLang(l){
+  lang=l;store.set('veld-lang',l);document.documentElement.lang=l;
+  document.querySelectorAll('[data-fr]').forEach(el=>{if(el._nl===undefined)el._nl=el.innerHTML;el.innerHTML=l==='fr'?el.dataset.fr:el._nl});
+  document.querySelectorAll('[data-fr-aria]').forEach(el=>{if(el._nlA===undefined)el._nlA=el.getAttribute('aria-label');el.setAttribute('aria-label',l==='fr'?el.dataset.frAria:el._nlA)});
+  document.querySelectorAll('[data-fr-ph]').forEach(el=>{if(el._nlP===undefined)el._nlP=el.placeholder;el.placeholder=l==='fr'?el.dataset.frPh:el._nlP});
+  $('langNl').setAttribute('aria-pressed',l==='nl');$('langFr').setAttribute('aria-pressed',l==='fr');
+  $('nameErr').textContent='';bg=null;updateHero();
+}
+function setTempo(v){tempo=v;store.set('veld-tempo',v);$('tempoSlow').setAttribute('aria-pressed',v==='slow');$('tempoMatch').setAttribute('aria-pressed',v!=='slow')}
+function commitName(){
+  const n=$('nameInput').value.trim().replace(/\s+/g,' ');
+  if(!n){$('nameErr').textContent=t('Schrijf eerst je naam.','Écris d’abord ton prénom.');$('nameInput').focus();return false}
+  setup.name=n;setup.club=$('clubInput').value.trim();store.set('veld-name',n);store.set('veld-club',setup.club);$('nameErr').textContent='';return true;
+}
+
+/* ========== Match flow ========== */
+function setDock(prompt,choices){$('prompt').textContent=prompt||'';$('prompt').hidden=!prompt;$('choices').hidden=!choices;$('fb').hidden=true}
+function banner(s,big){const b=$('banner');b.textContent=s;b.className='banner'+(big?' big':'');b.hidden=false}
+const hideBanner=()=>{$('banner').hidden=true};
+function updateScore(){$('sHome').textContent=G.us;$('sAway').textContent=G.them}
+function setBar(p){const b=$('timeBar');b.style.transform=`scaleX(${clamp(p,0,1)})`;b.style.background=p>.5?'var(--good)':p>.25?'var(--open)':'var(--bad)'}
+function clearScene(){view={};particles=[];flash=0;shake=0;ball.owner=null;ball.from=ball.to=null;ball.z=0}
+async function startMatch(lv){
+  const my=++token;tweens.forEach(x=>x.res());tweens=[];
+  try{speechSynthesis.cancel()}catch(e){}
+  buildTeams();clearScene();bg=null;
+  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,list:pickSituations()};
+  $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
+  audio();updateScore();setBar(1);setDock('');show('play');
+  const sel=slotOf();$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
+  banner(roleName(sel));roar(1.2,.06);sfx.whistle();
+  await wait(1100);if(my!==token)return;hideBanner();
+  for(G.i=0;G.i<G.list.length;G.i++){await playAction(G.list[G.i],my);if(my!==token)return}
+  if(my===token)finish();
+}
+async function playAction(sit,my){
+  view={};setDock('');hideBanner();ball.owner=null;ball.from=ball.to=null;ball.z=0;
+  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(G.i/(ACTIONS-1)))*(tempo==='slow'?1.7:1)*1000;
+  setBar(1);
+  const c=compose(sit,slotOf());
+  const moves=[];
+  c.pos.us.forEach((o,i)=>moves.push(tween(us[i],{x:o.x,y:o.y},700)));
+  c.pos.them.forEach((o,i)=>moves.push(tween(them[i],{x:o.x,y:o.y},700)));
+  const carrier=c.isOpen?us[c.carrier]:them[c.carrier];
+  moves.push(tween(ball,{x:c.ball[0],y:c.ball[1]},700));
+  await Promise.all(moves);if(my!==token)return;
+  ball.owner=carrier;
+  const who=c.isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.');
+  if(G.lv===0)setDock(who,true);
+  if(G.lv===1){setDock(who+' '+t('Tik op de beste ring!','Touche le meilleur cercle !'));view.rings=shuffle([{x:c.ideal.x,y:c.ideal.y,good:true},...c.decoys.map(d=>({x:d.x,y:d.y,tip:d.tip}))])}
+  if(G.lv===2)setDock(t('Tik waar jij moet staan!','Touche où tu dois te placer !'));
+  sfx.kick();
+  const dir=carrier.gk?0:(c.isOpen?-5:5);
+  if(dir)tween(carrier,{y:carrier.y+dir},total,'l');
+  const t0=clock;
+  const answer=await new Promise(res=>{deciding={t0,total,res,c}});
+  deciding=null;if(my!==token)return;
+  hideBanner();$('choices').hidden=true;$('prompt').hidden=true;view.rings=null;setBar(0);
+  await resolveAction(c,answer,clock-t0,total,carrier,my);
+}
+function judge(c,a){
+  const f=FORMATS[setup.fmt];let [good,close]=f.radius;if(c.role==='GK'){good*=.72;close*=.72}
+  if(a.kind==='late')return{res:'late',spot:null,tip:c.tip};
+  if(a.kind==='btn'){const right=a.v===c.s;return right?{res:'good',spot:c.ideal,tip:c.tip}:{res:'wrong',spot:{x:c.decoys[0].x,y:c.decoys[0].y},tip:c.isOpen?['Wij hebben de bal. Dus OPEN!','On a le ballon. Donc OUVRIR !']:['Zij hebben de bal. Dus DICHT!','Ils ont le ballon. Donc FERMER !']}}
+  if(a.kind==='ring')return a.ring.good?{res:'good',spot:c.ideal,tip:c.tip}:{res:'wrong',spot:{x:a.ring.x,y:a.ring.y},tip:a.ring.tip};
+  const p={x:a.x,y:a.y},d=dist(p,c.ideal);
+  if(d<=good)return{res:'good',spot:p,tip:c.tip};
+  if(d<=close)return{res:'close',spot:p,tip:c.tip};
+  let near=null,best=18;c.decoys.forEach(x=>{const v=dist(p,x);if(v<best){best=v;near=x.tip}});
+  return{res:'wrong',spot:p,tip:near||(c.isOpen?['Zoek meer ruimte, ver van de bal.','Cherche plus d’espace, loin du ballon.']:['Kom terug. Sta tussen de bal en ons doel.','Reviens. Place-toi entre le ballon et notre but.'])};
+}
+async function resolveAction(c,a,ms,total,carrier,my){
+  const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;
+  if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},Math.min(620,dist(me,j.spot)*9+140));if(!alive())return;view.marker=null}
+  us.forEach((m,i)=>{
+    if(m===carrier||m===me||m.gk||i===c.presser)return;
+    if(isOpen)tween(m,{x:clamp(50+(m.x-50)*1.18,5,95),y:clamp(m.y-5,10,128)},560);
+    else{const cx=50+(ball.x-50)*.3;tween(m,{x:cx+(m.x-cx)*.82,y:clamp(m.y+4,10,128)},560)}
+  });
+  view.hull=true;view.hullColor=isOpen?'#ffc928':'#7fe7ea';
+  const fast=ms<total*.5;let title,kind;
+  if(j.res==='good'){
+    kind='good';G.pts+=fast?3:2;
+    if(isOpen){G.open++;const scored=await sceneGoal(carrier,my);if(!alive())return;title=scored?rnd([t(`Goal van ${setup.name}!`,`But de ${setup.name} !`),t('Amai, goal!','Waouh, but !')]):rnd([t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),t('Schoon open!','Belle ouverture !')])}
+    else{G.dicht++;await sceneWin(my);if(!alive())return;title=rnd([t('Bal gepakt!','Ballon récupéré !'),t('Goed dicht!','Bien fermé !'),t(`Sterk, ${setup.name}!`,`Bravo, ${setup.name} !`)])}
+  }else if(j.res==='close'){
+    kind='close';G.pts+=1;title=t('Bijna!','Presque !');view.ghost=c.ideal;
+    if(isOpen)await scenePass(me,my);else await sceneKeeper(carrier,my);if(!alive())return;
+  }else{
+    kind='bad';title=j.res==='late'?t('Te laat!','Trop tard !'):(isOpen?t('Bal kwijt!','Ballon perdu !'):t('Tegengoal!','But encaissé !'));
+    if(isOpen)await sceneLost(carrier,my);else await sceneAgainst(carrier,my);if(!alive())return;
+    view.ghost=c.ideal;
+  }
+  await feedback(title,p2(j.tip),kind,my);
+}
+async function kick(tx,ty,dur,h=2){ball.owner=null;ball.from={x:ball.x,y:ball.y};ball.to={x:tx,y:ty};ball.h=h;sfx.kick();await tween(ball,{x:tx,y:ty},dur,'out');ball.from=ball.to=null;ball.z=0}
+async function scenePass(target,my){await kick(target.x,target.y,500);if(my!==token)return;ball.owner=target;sfx.good();await wait(350)}
+async function sceneGoal(carrier,my){
+  await kick(me.x,me.y,dist(ball,me)*7+220);if(my!==token)return false;ball.owner=me;
+  let shooter=me,scored=true;
+  if(me.y>64){
+    /* From deep, you make the pass and your striker finishes. */
+    scored=false;shooter=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0];
+    tween(shooter,{x:clamp(shooter.x,28,72),y:30},700);
+    await wait(180);if(my!==token)return false;
+    await kick(clamp(shooter.x,28,72),30,520,3.5);if(my!==token)return false;ball.owner=shooter;
+  }else{
+    await tween(me,{x:clamp(me.x+(50-me.x)*.55,10,90),y:Math.min(me.y,30)},560);if(my!==token)return false;
+  }
+  const shot={x:FORMATS[setup.fmt].line[0]+3+Math.random()*14,y:3};
+  tween(gkThem,{x:50+(shot.x>50?-8:8)},300);
+  await kick(shot.x,shot.y,330,4);if(my!==token)return false;
+  G.us++;updateScore();sfx.goal();celebrate();banner(t('GOAL!','BUT !'),true);await wait(1050);hideBanner();
+  return scored;
+}
+async function sceneWin(my){await kick(me.x,me.y,dist(ball,me)*6+200,0.5);if(my!==token)return;ball.owner=me;sfx.good();await wait(650)}
+async function sceneKeeper(carrier,my){
+  await tween(carrier,{y:clamp(carrier.y+14,10,112)},420);if(my!==token)return;
+  await kick(gkUs.x,gkUs.y,380,2.5);if(my!==token)return;ball.owner=gkUs;await wait(300);
+}
+async function sceneLost(carrier,my){
+  const mid={x:(carrier.x+me.x)/2,y:(carrier.y+me.y)/2};
+  let o=them[1],b=1e9;them.forEach(x=>{if(x.gk)return;const v=dist(x,mid);if(v<b){b=v;o=x}});
+  tween(o,{x:mid.x,y:mid.y},430);await kick(mid.x,mid.y,430,1.5);if(my!==token)return;
+  ball.owner=o;sfx.bad();await wait(450);
+}
+async function sceneAgainst(carrier,my){
+  if(carrier.y<62){
+    /* Far from our goal, they pass to their deepest forward first. */
+    const fw=them.filter(a=>a!==carrier&&!a.gk).sort((a,b)=>b.y-a.y)[0];
+    const tx=fw.x,ty=Math.max(fw.y,92);tween(fw,{x:tx,y:ty},520);
+    await kick(tx,ty,520,3);if(my!==token)return;ball.owner=fw;carrier=fw;
+  }
+  await tween(carrier,{x:50+(carrier.x-50)*.55,y:112},520);if(my!==token)return;
+  tween(gkUs,{x:40},240);
+  await kick(FORMATS[setup.fmt].line[1]-3,137.5,320,2.5);if(my!==token)return;
+  G.them++;updateScore();sfx.bad();shake=reduced?0:4;await wait(700);
+}
+function feedback(title,tip,kind,my){return new Promise(res=>{
+  $('prompt').hidden=true;$('choices').hidden=true;$('fb').hidden=false;$('fb').className='feedback '+kind;$('fbTitle').textContent=title;$('fbTip').textContent=tip;
+  if(kind==='good')sfx.good();speak(title+' '+tip);
+  let fin=false;
+  advance=()=>{if(fin)return;fin=true;clearTimeout(goTimer);advance=null;view.hull=null;view.ghost=null;res()};
+  if(kind==='good')goTimer=setTimeout(()=>{if(my===token&&advance)advance()},2600);
+})}
+function finish(){
+  const r=G.pts/(ACTIONS*3),n=r>=.7?3:r>=.45?2:r>=.2?1:0,key=`veld-stars-${setup.fmt}-${G.lv}`;if(n>store.get(key,0))store.set(key,n);
+  $('rTitle').textContent=G.us>G.them?t('Gewonnen!','Gagné !'):G.us===G.them?t('Gelijkspel!','Match nul !'):t('Verloren','Perdu');
+  $('rScore').textContent=`${$('tHome').textContent} ${G.us} - ${G.them} ${t('GAST','ADV')}`;
+  $('rStars').textContent=starText(n);$('rStars').setAttribute('aria-label',n+'/3');
+  $('rOpen').textContent=`${G.open}/4`;$('rDicht').textContent=`${G.dicht}/4`;
+  $('rTip').textContent=G.open===4&&G.dicht===4?t(`Alles goed, ${setup.name}! Jij bent een baas op het veld.`,`Tout est bon, ${setup.name} ! Tu es un chef sur le terrain.`):G.open<G.dicht?t('Oefen OPEN: wij hebben de bal, maak het veld groot.','Entraîne-toi à OUVRIR : on a le ballon, rends le terrain grand.'):G.dicht<G.open?t('Oefen DICHT: zij hebben de bal, maak het veld klein.','Entraîne-toi à FERMER : ils ont le ballon, rends le terrain petit.'):t('Kijk altijd eerst: wie heeft de bal?','Regarde toujours d’abord : qui a le ballon ?');
+  sfx.whistle();show('result');
+}
+
+/* ========== Input ========== */
+cv.addEventListener('pointerdown',e=>{
+  if(!deciding||G.lv===0)return;
+  const r=cv.getBoundingClientRect(),q=unproj(e.clientX-r.left,e.clientY-r.top);
+  if(G.lv===1){let best=null,bd=20;view.rings.forEach(o=>{const v=Math.hypot(o.x-q.x,o.y-q.y);if(v<bd){bd=v;best=o}});if(best)deciding.res({kind:'ring',ring:best})}
+  else deciding.res({kind:'tap',x:clamp(q.x,5,95),y:clamp(q.y,6,136)});
+});
+$('btnOpen').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'open'})};
+$('btnDicht').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'dicht'})};
+$('fbGo').onclick=()=>{if(advance)advance()};
+$('soundHome').onclick=toggleSound;$('soundPlay').onclick=toggleSound;
+$('nameInput').addEventListener('input',()=>{$('nameErr').textContent='';updateHero()});
+$('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('toFormat').click()}});
+$('toFormat').onclick=()=>{if(commitName()){audio();goStep(2)}};
+$('toLevel').onclick=()=>{if(slotOf())goStep(4)};
+$('back').onclick=()=>goStep(setup.step-1);
+$('quit').onclick=()=>{token++;deciding=null;advance=null;clearTimeout(goTimer);tweens.forEach(x=>x.res());tweens=[];clearScene();try{speechSynthesis.cancel()}catch(e){}hideBanner();show('setup');goStep(4)};
+$('rMenu').onclick=()=>{show('setup');goStep(3)};
+$('rAgain').onclick=()=>startMatch(G.lv);
+$('langNl').onclick=()=>setLang('nl');$('langFr').onclick=()=>setLang('fr');
+$('tempoSlow').onclick=()=>setTempo('slow');$('tempoMatch').onclick=()=>setTempo('match');
+
+/* ========== Loop ========== */
+function frame(ts){
+  clock=ts;stepTweens();
+  if(deciding){const left=1-(clock-deciding.t0)/deciding.total;setBar(left);if(left<=0)deciding.res({kind:'late'})}
+  if(!$('play').hidden&&cv.width>10&&us.length)draw();
+  requestAnimationFrame(frame);
+}
+$('nameInput').value=setup.name;$('clubInput').value=setup.club;
+setSoundIcons();setTempo(tempo);setLang(store.get('veld-lang','nl')==='fr'?'fr':'nl');goStep(1);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{bg=null});
+requestAnimationFrame(frame);
+</script>
+
+</body>
+</html>
