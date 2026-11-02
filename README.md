@@ -4,9 +4,7 @@ Jeu de football qui apprend aux enfants à bien se placer : le joueur écrit son
 
 ## Récupérer l'IPA
 
-1. Ouvrez l'onglet **Actions** du dépôt, puis la dernière exécution de **Build iOS IPA**.
-2. Quand elle est verte, téléchargez `FindTheSpace-unsigned-ipa` en bas de la page.
-3. Décompressez le fichier téléchargé pour obtenir `FindTheSpace-unsigned.ipa`.
+Téléchargez directement la dernière version : [FindTheSpace-unsigned.ipa](https://github.com/CareSncb/Findthespace/releases/download/ipa-latest/FindTheSpace-unsigned.ipa). Le fichier est remplacé à chaque compilation.
 
 Cet IPA n'est **pas signé** : Apple exige une signature pour l'installer sur un iPhone.
 
