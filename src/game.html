@@ -270,6 +270,9 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .cup3d{width:min(62vw,250px);height:min(56vh,290px)}
 .fmt svg{border-radius:9px;box-shadow:0 6px 14px #0008}
 .gl3d body.award-open .screen{visibility:hidden}
+.skill-card{grid-template-columns:minmax(0,1fr)!important}.skill-card strong{font-size:23px!important}
+.banner.skill{top:17%;font-size:clamp(34px,10.5vw,64px);background:linear-gradient(100deg,#ffe067,#ff8a1f);color:#10131b;padding:3px 20px;box-shadow:0 8px 26px #ff8a1f88;animation:slam .35s cubic-bezier(.2,1.5,.4,1) both;max-width:none}
+#rSkills{background:#3d2a0ccc;border:1px solid var(--gold);border-radius:12px;padding:9px 12px;text-align:left;font-size:16px}#rSkills b{display:block;color:var(--gold);font-family:var(--display);font-weight:400;font-size:24px;text-transform:uppercase}
 </style>
 
 <canvas id="gl" aria-hidden="true"></canvas>
@@ -371,6 +374,7 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
     <div class="d"><b id="rDicht"></b><span data-fr="fois bien fermé">keer goed dicht</span></div>
   </div>
   <p id="rTip"></p>
+  <div id="rSkills" hidden></div>
   <div id="rNew"></div>
   <div class="next-goal" id="rNext"></div>
   <button class="cab-btn" id="rCab"></button>
@@ -585,7 +589,7 @@ const KITS=[
 let kit=KITS[0];
 /* ========== Challenges and trophies ========== */
 const blankPos=()=>({m:0,w:0,good:0,goals:0,clean:0,l3stars:0,l3perfect:0,l3flash:0});
-const blankProgress=()=>({byPos:{},winRun:0,bestWinRun:0,m5:0,good5:0,m8l3:0,m11l3:0,matches:0,wins:0,good:0,open:0,dicht:0,goals:0,fast:0,streak:0,clean:0,perfect:0,openP:0,dichtP:0,roles:[],positions:[],formats:[],threeStars:[],l3wins:0,l3match:0,done:[],cups:[]});
+const blankProgress=()=>({skills:[],skillCount:0,byPos:{},winRun:0,bestWinRun:0,m5:0,good5:0,m8l3:0,m11l3:0,matches:0,wins:0,good:0,open:0,dicht:0,goals:0,fast:0,streak:0,clean:0,perfect:0,openP:0,dichtP:0,roles:[],positions:[],formats:[],threeStars:[],l3wins:0,l3match:0,done:[],cups:[]});
 const C=(id,nl,fr,cur,goal)=>({id,nl,fr,cur,goal});
 const CUPS=[
  {id:'start',n:['Eerste Stap','Premiers Pas'],col:['#e8a36b','#9c5a2b'],ch:[
@@ -654,6 +658,23 @@ const HARD_CUPS=[
 const LEGEND_CUP={id:'legend',hard:true,n:['De Legende van 5 tegen 5','La Légende du 5 contre 5'],col:['#fff6c2','#d99a00']};
 const GOLD_IDS=POS5.map(x=>'p-'+x.k+'-3');
 const ALL_CUPS=[...CUPS,...POS_CUPS,...HARD_CUPS];
+const SKILLS=[
+ {id:'over',n:['Schaar','Passement'],how:['Zwaai je voet rond de bal, zonder hem te raken. Traag beginnen!','Fais passer ton pied autour du ballon sans le toucher. Commence lentement !'],need:0,dur:1250},
+ {id:'cruyff',n:['Cruyff-draai','Crochet Cruyff'],how:['Doe alsof je schiet. Trek de bal met de binnenkant achter je andere been.','Fais semblant de tirer. Tire le ballon avec l’intérieur du pied derrière ton autre jambe.'],need:0,dur:1250},
+ {id:'elastico',n:['Elastico','Élastique'],how:['Duw de bal naar buiten en trek hem meteen terug naar binnen, met dezelfde voet.','Pousse le ballon vers l’extérieur et ramène-le vers l’intérieur, avec le même pied.'],need:0,dur:1150},
+ {id:'panna',n:['Panna!','Petit pont !'],how:['Speel de bal tussen de benen van je tegenstander. Loop rond hem en pak de bal terug.','Joue le ballon entre les jambes de l’adversaire. Contourne-le et récupère le ballon.'],need:1,dur:1300},
+ {id:'roulette',n:['Roulette','Roulette'],how:['Zet je voet op de bal, draai rond en trek de bal mee met je andere voet.','Pose le pied sur le ballon, tourne sur toi et emmène le ballon avec l’autre pied.'],need:1,dur:1350},
+ {id:'rainbow',n:['Regenboog','Sombrero'],how:['Klem de bal tussen je voeten en wip hem met je hiel over de tegenstander.','Coince le ballon entre tes pieds et lève-le du talon au-dessus de l’adversaire.'],need:1,dur:1400}
+];
+const SKILL_CUPS=[
+ {id:'skills1',group:'skill',tier:['Technisch','Technique'],n:['Techneut','Le Technicien'],col:['#ffb37a','#d9540e'],ch:[
+  C('sk1','Doe 10 gestes','Fais 10 gestes',p=>p.skillCount,10),
+  C('sk3','Doe 3 verschillende gestes','Fais 3 gestes différents',p=>p.skills.length,3)]},
+ {id:'skills2',group:'skill',hard:true,tier:['Moeilijk','Difficile'],n:['Goochelaar','Le Magicien'],col:['#ff9bd8','#b5219a'],ch:[
+  C('sk6','Doe alle 6 gestes','Fais les 6 gestes',p=>p.skills.length,6),
+  C('sk100','Doe 150 gestes','Fais 150 gestes',p=>p.skillCount,150)]}
+];
+ALL_CUPS.push(...SKILL_CUPS);
 const FINAL_CUP={id:'final',n:['Find the Space Cup','Find the Space Cup'],col:['#fff1a8','#e0a800']};
 const cupWon=(cup,p)=>cup.ch.every(c=>c.cur(p)>=c.goal);
 function cupSVG(col,won=true){
@@ -1202,7 +1223,26 @@ function GL_render(ts){
       L.leg.rotation.x=-ph*.85*mv-(sd===1?kick*1.3:0);L.shin.rotation.x=Math.max(0,ph)*1.25*mv+.06;
       L.arm.rotation.x=ph*.8*mv+.08;L.fore.rotation.x=-.5-.7*mv;
     });
+    [-1,1].forEach(sd=>{m.limbs[sd].leg.rotation.z=0;m.limbs[sd].shin.rotation.z=0});m.body.rotation.z=0;
     if(hop){m.limbs[-1].arm.rotation.x=-2.5;m.limbs[1].arm.rotation.x=-2.5}
+    if(a.spread>clock){m.limbs[-1].leg.rotation.z=-.38;m.limbs[1].leg.rotation.z=.38}
+    if(a.beatenUntil>clock){const q=(a.beatenUntil-clock)/700;m.body.rotation.x=-.45*q;m.body.rotation.z=Math.sin(q*9)*.32*q}
+    if(a.skill){
+      const q=clamp((clock-a.skill.t0)/a.skill.dur,0,1),R_=m.limbs[1],L_=m.limbs[-1],base=Math.PI,ez=x=>x*x*(3-2*x);
+      m.yaw=base;m.root.rotation.y=base;
+      if(a.skill.id==='over'){
+        const w=Math.sin(q*18),act=q<.62?1:0;
+        m.body.rotation.z=w*.3*act;R_.leg.rotation.z=(w>0?w*.7:0)*act;L_.leg.rotation.z=(w<0?w*.7:0)*act;R_.leg.rotation.x=-(w>0?w*.55:0)*act;L_.leg.rotation.x=(w<0?w*.55:0)*act;
+      }else if(a.skill.id==='elastico'){
+        const act=q<.5?Math.sin(q/.5*Math.PI):0;R_.leg.rotation.z=act*.75;R_.leg.rotation.x=-.45*act;m.body.rotation.z=-act*.28;
+      }else if(a.skill.id==='cruyff'){
+        const fake=q<.3?Math.sin(q/.3*Math.PI):0,drag=clamp((q-.32)/.26,0,1),turn=ez(clamp((q-.34)/.3,0,1));R_.leg.rotation.x=-fake*1.3+Math.sin(drag*Math.PI)*.8;R_.shin.rotation.x=Math.sin(drag*Math.PI)*.9;m.root.rotation.y=base+turn*Math.PI*2;
+      }else if(a.skill.id==='roulette'){
+        m.root.rotation.y=base+ez(q)*Math.PI*2;R_.leg.rotation.z=Math.sin(q*Math.PI*2)*.5;L_.leg.rotation.z=-Math.sin(q*Math.PI*2)*.5;[-1,1].forEach(sd=>{m.limbs[sd].arm.rotation.z=sd*(.14+.75*Math.sin(q*Math.PI))});
+      }else if(a.skill.id==='rainbow'){
+        const flick=q<.28?Math.sin(q/.28*Math.PI):0;R_.leg.rotation.x=flick*1.25;R_.shin.rotation.x=flick*1.7;m.body.rotation.x=-.2*flick+.18;
+      }else{R_.leg.rotation.x=q<.2?-Math.sin(q/.2*Math.PI)*.8:R_.leg.rotation.x}
+    }else if(m.limbs[1].arm.rotation.z!==.14){[-1,1].forEach(sd=>{m.limbs[sd].arm.rotation.z=sd*.14})}
   });
   /* Ball */
   const bs=2.15*Math.max(FORMATS[setup.fmt].size,.9),bm=GL.ballMesh;
@@ -1220,6 +1260,8 @@ function GL_render(ts){
   if(inMatch&&GL.matchPos){
     const panX=(ball.x-50)*.05;GL.zoom=Math.max(0,GL.zoom-dt*.7);
     wantPos=GL.matchPos.clone();wantPos.x+=panX;wantLook=GL.matchLook.clone();wantLook.x+=panX*.8;
+    GL.skillZoom=(GL.skillZoom||0)+((GL.skillCam?1:0)-(GL.skillZoom||0))*Math.min(1,dt*5);
+    if(GL.skillZoom>.001&&me){const fx=me.x-50,fz=me.y-70;wantPos=wantPos.clone().lerp(new T.Vector3(fx,46,fz+44),GL.skillZoom*.72);wantLook=wantLook.clone().lerp(new T.Vector3(fx,4,fz-8),GL.skillZoom*.72)}
     if(GL.zoom>0){const g=Math.min(1,GL.zoom);wantPos.lerp(new T.Vector3(ball.x-50,wantPos.y*.82,wantPos.z*.82),g*.5)}
     if(shake>0){wantPos.x+=(Math.random()-.5)*shake*.2;wantPos.y+=(Math.random()-.5)*shake*.2;shake*=.9;if(shake<.3)shake=0}
   }else if(GL.showHero&&GL.hero){
@@ -1229,7 +1271,7 @@ function GL_render(ts){
     const a=o*.06,R=GL.winW<GL.winH?122:104;
     wantPos=new T.Vector3(Math.sin(a)*R,58,Math.cos(a)*R);wantLook=new T.Vector3(0,0,0);
   }
-  const ease=1-Math.exp(-dt*(inMatch?5:2));GL.camPos.lerp(wantPos,ease);GL.camLook.lerp(wantLook,ease);
+  const ease=1-Math.exp(-dt*(GL.skillCam?8:inMatch?5:2));GL.camPos.lerp(wantPos,ease);GL.camLook.lerp(wantLook,ease);
   if(GL.snap){GL.camPos.copy(wantPos);GL.camLook.copy(wantLook);GL.snap=false}
   cam.position.copy(GL.camPos);cam.lookAt(GL.camLook);cam.updateMatrixWorld();
   if(GL.flashAmt>0)GL.flashAmt=Math.max(0,GL.flashAmt-dt*1.3);
@@ -1290,6 +1332,9 @@ function tween(o,to,dur,ease='io'){return new Promise(res=>{
   tweens.push({o,from,to,t0:clock,dur:Math.max(1,reduced?dur*.6:dur),ease,res});
 })}
 const wait=ms=>new Promise(res=>tweens.push({o:{},from:{},to:{},t0:clock,dur:ms,ease:'l',res}));
+let scripts=[];
+const runScript=(dur,fn)=>new Promise(res=>scripts.push({t0:clock,dur:reduced?dur*.6:dur,fn,res}));
+function stepScripts(){const done=[];scripts=scripts.filter(x=>{const q=clamp((clock-x.t0)/x.dur,0,1);x.fn(q);if(q>=1){done.push(x.res);return false}return true});done.forEach(f=>f())}
 function stepTweens(){const done=[];tweens=tweens.filter(x=>{const p=clamp((clock-x.t0)/x.dur,0,1),e=x.ease==='l'?p:x.ease==='out'?1-(1-p)*(1-p):p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;for(const k in x.to)x.o[k]=x.from[k]+(x.to[k]-x.from[k])*e;if(p>=1){done.push(x.res);return false}return true});done.forEach(f=>f())}
 
 /* ========== Scene state ========== */
@@ -1709,7 +1754,7 @@ async function resolveAction(c,a,ms,total,carrier,my){
     else{const cx=50+(ball.x-50)*.3;tween(m,{x:cx+(m.x-cx)*.82,y:clamp(m.y+4,10,128)},560)}
   });
   view.hull=true;view.hullColor=isOpen?'#ffc928':'#7fe7ea';
-  const fast=ms<total*.5;let title,kind;
+  const fast=ms<total*.5;let title,kind;G.lastFast=fast;
   if(j.res==='good'){G.streak++;G.best=Math.max(G.best,G.streak);if(fast&&tempo!=='slow')G.fast++}else G.streak=0;
   G.log.push(j.res==='good'?'good':j.res==='close'?'close':'bad');
   $('streak').hidden=G.streak<2;$('streak').textContent=t(`Reeks ${G.streak}`,`Série ${G.streak}`);
@@ -1731,6 +1776,7 @@ async function kick(tx,ty,dur,h=2){if(ball.owner)ball.owner.kickUntil=clock+240;
 async function scenePass(target,my){await kick(target.x,target.y,500);if(my!==token)return;ball.owner=target;sfx.good();await wait(350)}
 async function sceneGoal(carrier,my){
   await kick(me.x,me.y,dist(ball,me)*7+220);if(my!==token)return false;ball.owner=me;
+  await sceneSkill(my,G.lastFast);if(my!==token)return false;
   let shooter=me,scored=true;
   if(me.y>64){
     /* From deep, you make the pass and your striker finishes. */
@@ -1747,7 +1793,53 @@ async function sceneGoal(carrier,my){
   G.us++;updateScore();sfx.goal();celebrate();hopTeam();banner(t('GOAL!','BUT !'),true);await wait(1050);hideBanner();
   return scored;
 }
-async function sceneWin(my){await kick(me.x,me.y,dist(ball,me)*6+200,0.5);if(my!==token)return;ball.owner=me;sfx.good();await wait(650)}
+function pickSkill(fast){
+  const gk=slotOf().role==='GK',pool=SKILLS.filter(k=>gk?k.id==='over'||k.id==='cruyff':(fast||!k.need));
+  const seen=G.skillsDone||[];const fresh=pool.filter(k=>!seen.includes(k.id));
+  return rnd(fresh.length?fresh:pool);
+}
+async function sceneSkill(my,fast){
+  const skill=pickSkill(fast),S0={x:me.x,y:me.y},side=me.x<50?1:-1;
+  /* A defender steps up, and is beaten */
+  let def=null,b=1e9;them.forEach(a=>{if(a.gk)return;const v=Math.hypot(a.x-me.x,a.y-me.y);if(v<b){b=v;def=a}});if(!def)return;
+  const yDir=-1,O={x:clamp(S0.x+side*1,8,92),y:clamp(S0.y+yDir*10,10,128)},E={x:clamp(S0.x+side*11,6,94),y:clamp(S0.y+yDir*22,9,128)};
+  ball.owner=me;ball.from=ball.to=null;
+  GL.skillCam=true;const keepHull=view.hull;view.hull=null;
+  banner(p2(skill.n));$('banner').classList.add('skill');
+  tone(320,.3,'triangle',.08,0,500);
+  await tween(def,{x:O.x,y:O.y},280);if(my!==token)return;
+  ball.owner=null;me.skill={id:skill.id,t0:clock,dur:reduced?skill.dur*.6:skill.dur};
+  if(skill.id==='panna')def.spread=clock+skill.dur;
+  const L=(a,b,q)=>a+(b-a)*q,ez=q=>q*q*(3-2*q),pos=(o,x,y,z=0)=>{o.x=x;o.y=y;if(o===ball)ball.z=z};
+  const foot=(fx=1.5,fy=-1.6)=>({x:me.x+fx,y:me.y+fy});
+  await runScript(skill.dur,q=>{
+    if(skill.id==='over'){
+      const g=clamp((q-.62)/.38,0,1),e=ez(g);pos(me,L(S0.x,E.x,e)+Math.sin(q*18)*(1-g)*1.2,L(S0.y,E.y,e));const f=foot(1.5*(1-g)+.8*g,-2.1);pos(ball,f.x,f.y);
+    }else if(skill.id==='elastico'){
+      const g=clamp((q-.5)/.5,0,1),e=ez(g),out=q<.5?Math.sin(q/.5*Math.PI)*-side*4.6:0;pos(me,L(S0.x,E.x,e),L(S0.y,E.y,e));const f=foot(side*1.3,-2);pos(ball,f.x+out,f.y);
+    }else if(skill.id==='cruyff'){
+      const g=clamp((q-.58)/.42,0,1),e=ez(g),drag=clamp((q-.32)/.26,0,1);pos(me,L(S0.x,E.x,e),L(S0.y,E.y,e));
+      const back=Math.sin(drag*Math.PI)*3.2;const f=foot(1.4-drag*2.8*(1-g),-2+back);pos(ball,f.x,f.y);
+    }else if(skill.id==='roulette'){
+      const e=ez(q),an=q*Math.PI*2,x=L(S0.x,E.x,e),y=L(S0.y,E.y,e);pos(me,x,y);pos(ball,x+Math.cos(an)*2.3,y-Math.sin(an)*2.3);
+    }else if(skill.id==='panna'){
+      const e=ez(q),arc=Math.sin(q*Math.PI)*side*9;pos(me,L(S0.x,E.x,e)+arc,L(S0.y,E.y,e));
+      const bq=clamp(q/.78,0,1),bx=L(S0.x+1.5,E.x,bq),by=L(S0.y-1.6,E.y-2,bq);pos(ball,q<.78?bx:me.x+.8,q<.78?by:me.y-2);
+    }else{ /* Rainbow */
+      const e=ez(clamp((q-.12)/.88,0,1)),arc=Math.sin(q*Math.PI)*side*7;pos(me,L(S0.x,E.x,e)+arc,L(S0.y,E.y,e));
+      const bq=clamp((q-.12)/.78,0,1),h=(PLAYER_H*FORMATS[setup.fmt].size)*1.45,z=h*4*bq*(1-bq);
+      if(q<.9)pos(ball,L(S0.x+1,E.x,bq),L(S0.y-1.2,E.y-2,bq),z);else{const f=foot(.8,-2);pos(ball,f.x,f.y,0)}
+    }
+  });
+  if(my!==token)return;
+  me.skill=null;ball.owner=me;ball.z=0;GL.skillCam=false;hideBanner();view.hull=keepHull;
+  /* The defender stumbles the wrong way */
+  def.beatenUntil=clock+700;tween(def,{x:clamp(def.x-side*7,5,95),y:clamp(def.y+6,10,132)},620);
+  G.skillsDone=G.skillsDone||[];G.skillsDone.push(skill.id);
+  roar(1,.1);if(GL.on)GL.jump=Math.max(GL.jump,.35);
+  await wait(120);
+}
+async function sceneWin(my){await kick(me.x,me.y,dist(ball,me)*6+200,0.5);if(my!==token)return;ball.owner=me;sfx.good();if(G.lastFast&&slotOf().role!=='GK'){await sceneSkill(my,true);if(my!==token)return}await wait(450)}
 async function sceneKeeper(carrier,my){
   await tween(carrier,{y:clamp(carrier.y+14,10,112)},420);if(my!==token)return;
   await kick(gkUs.x,gkUs.y,380,2.5);if(my!==token)return;ball.owner=gkUs;await wait(300);
@@ -1789,6 +1881,8 @@ function finish(){
   if(GL.on&&G.us>=G.them){hopTeam();GL.hero=me||us[us.length-1];GL.jump=G.us>G.them?.8:.3}
   sfx.whistle();show('result');
   renderResultGoals(news);
+  const rs=$('rSkills'),moves=G.skillsDone||[];
+  if(moves.length){const pick=SKILLS.find(k=>(G.newSkills||[]).includes(k.id))||SKILLS.find(k=>k.id===moves[moves.length-1]);const isNew=(G.newSkills||[]).includes(pick.id);rs.hidden=false;rs.innerHTML='<b></b><span></span>';rs.querySelector('b').textContent=(isNew?t('Nieuw gebaar: ','Nouveau geste : '):t('Oefen thuis: ','À essayer : '))+p2(pick.n);rs.querySelector('span').textContent=p2(pick.how)}else rs.hidden=true;
   queueAwards(news.cups);
 }
 /* ========== Progress ========== */
@@ -1812,6 +1906,7 @@ function recordMatch(starsWon){
   if(G.lv===2&&G.us>G.them&&setup.fmt===8)p.m8l3++;
   if(G.lv===2&&G.us>G.them&&setup.fmt===11)p.m11l3++;
   if(G.open===4)p.openP++;if(G.dicht===4)p.dichtP++;if(G.open===4&&G.dicht===4)p.perfect++;
+  const moves=G.skillsDone||[];p.skillCount+=moves.length;G.newSkills=[];moves.forEach(id=>{if(!p.skills.includes(id)){p.skills.push(id);G.newSkills.push(id)}});
   addUnique(p.roles,slot.role);addUnique(p.positions,setup.fmt+'-'+slot.id);addUnique(p.formats,setup.fmt);
   if(starsWon===3)addUnique(p.threeStars,G.lv);
   if(G.lv===2&&G.us>G.them){p.l3wins++;if(tempo!=='slow')p.l3match++}
@@ -1888,6 +1983,9 @@ function renderCabinet(){
     POS_CUPS.filter(c=>c.group===x.k).forEach(card);
   });
   section(t('Eerste bekers','Premiers trophées'));CUPS.forEach(card);
+  section(t('Gestes','Gestes techniques'));SKILL_CUPS.forEach(card);
+  const known=SKILLS.filter(k=>p.skills.includes(k.id));
+  SKILLS.forEach(k=>{const has=known.includes(k),d=document.createElement('div');d.className='cup skill-card'+(has?' won':'');d.innerHTML='<div><strong></strong><ul><li></li></ul></div>';d.querySelector('strong').textContent=(has?'✓ ':'')+p2(k.n);d.querySelector('li').textContent=has?p2(k.how):(k.need?t('Nog niet gedaan. Tip: kies goed én snel.','Pas encore fait. Astuce : choisis bien et vite.'):t('Nog niet gedaan. Kies een goede plek.','Pas encore fait. Choisis une bonne place.'));box.appendChild(d)});
   section(t('Zeer moeilijk','Très difficile'));HARD_CUPS.forEach(card);
   resetArmed=false;$('cabReset').textContent=t('Opnieuw beginnen','Tout recommencer');
 }
@@ -1919,7 +2017,7 @@ $('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefau
 $('toFormat').onclick=()=>{if(commitName()){audio();goStep(2)}};
 $('toLevel').onclick=()=>{if(slotOf())goStep(4)};
 $('back').onclick=()=>goStep(setup.step-1);
-$('quit').onclick=()=>{token++;deciding=null;advance=null;clearTimeout(goTimer);tweens.forEach(x=>x.res());tweens=[];clearScene();try{speechSynthesis.cancel()}catch(e){}hideBanner();show('setup');goStep(4)};
+$('quit').onclick=()=>{token++;scripts.forEach(x=>x.res());scripts=[];GL.skillCam=false;if(me)me.skill=null;deciding=null;advance=null;clearTimeout(goTimer);tweens.forEach(x=>x.res());tweens=[];clearScene();try{speechSynthesis.cancel()}catch(e){}hideBanner();show('setup');goStep(4)};
 $('rMenu').onclick=()=>{show('setup');goStep(3)};
 $('rAgain').onclick=()=>startMatch(G.lv);
 $('langNl').onclick=()=>setLang('nl');$('langFr').onclick=()=>setLang('fr');
@@ -1927,7 +2025,7 @@ $('tempoSlow').onclick=()=>setTempo('slow');$('tempoMatch').onclick=()=>setTempo
 
 /* ========== Loop ========== */
 function frame(ts){
-  clock=ts;stepTweens();
+  clock=ts;stepTweens();stepScripts();
   if(deciding){const left=1-(clock-deciding.t0)/deciding.total;setBar(left);if(left<.3&&!deciding.warned){deciding.warned=true;tone(880,.08,'square',.05);tone(880,.08,'square',.05,.28)}if(left<=0)deciding.res({kind:'late'})}
   if(GL.on&&us.length)GL_render(ts);
   if(!$('play').hidden&&cv.width>10&&us.length)draw();
