@@ -19,13 +19,19 @@ src = src.replace(/<link rel="preconnect"[^>]*>\s*/, '');
 src = src.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/, '');
 if (src.includes('fonts.googleapis.com')) throw new Error('A remote font link is still present');
 
+// The 3D library also ships inside the app.
+const cdnThree = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+if (!src.includes(cdnThree)) throw new Error('3D library tag not found');
+src = src.replace(cdnThree, 'three.min.js');
+copyFileSync(join(root, 'assets', 'three.min.js'), join(www, 'three.min.js'));
+
 const fonts = [
-  ['Lilita One', 400, '@fontsource/lilita-one/files/lilita-one-latin-400-normal.woff2'],
+  ['Barlow Condensed', 800, '@fontsource/barlow-condensed/files/barlow-condensed-latin-800-italic.woff2', 'italic'],
   ['Andika', 400, '@fontsource/andika/files/andika-latin-400-normal.woff2'],
   ['Andika', 700, '@fontsource/andika/files/andika-latin-700-normal.woff2'],
 ];
 let faces = '';
-for (const [family, weight, rel] of fonts) {
+for (const [family, weight, rel, style = 'normal'] of fonts) {
   const from = join(root, 'node_modules', rel);
   if (!existsSync(from)) {
     console.warn(`Font not installed, falling back to system font: ${rel}`);
@@ -33,7 +39,7 @@ for (const [family, weight, rel] of fonts) {
   }
   const file = rel.split('/').pop();
   copyFileSync(from, join(www, 'fonts', file));
-  faces += `@font-face{font-family:"${family}";font-weight:${weight};font-style:normal;font-display:swap;src:url("fonts/${file}") format("woff2")}\n`;
+  faces += `@font-face{font-family:"${family}";font-weight:${weight};font-style:${style};font-display:swap;src:url("fonts/${file}") format("woff2")}\n`;
 }
 
 const native = `body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,env(safe-area-inset-bottom,0px));-webkit-text-size-adjust:100%;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
