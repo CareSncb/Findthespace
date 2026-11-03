@@ -19,11 +19,8 @@ src = src.replace(/<link rel="preconnect"[^>]*>\s*/, '');
 src = src.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/, '');
 if (src.includes('fonts.googleapis.com')) throw new Error('A remote font link is still present');
 
-// The 3D library also ships inside the app.
-const cdnThree = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-if (!src.includes(cdnThree)) throw new Error('3D library tag not found');
-src = src.replace(cdnThree, 'three.min.js');
-copyFileSync(join(root, 'assets', 'three.min.js'), join(www, 'three.min.js'));
+// The 3D libraries ship inside the app.
+for (const f of ['three.min.js', 'three-post.js']) copyFileSync(join(root, 'assets', f), join(www, f));
 
 const fonts = [
   ['Barlow Condensed', 800, '@fontsource/barlow-condensed/files/barlow-condensed-latin-800-italic.woff2', 'italic'],
