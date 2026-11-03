@@ -106,7 +106,9 @@ canvas{position:absolute;inset:0;display:block;touch-action:none;cursor:pointer}
 .go{grid-column:2;grid-row:1/3;background:var(--chalk);color:var(--ink);font-family:var(--display);font-size:20px;border-radius:12px;padding:14px 13px;min-height:52px}
 
 /* Result */
-#result{display:flex;flex-direction:column;justify-content:center;gap:13px;text-align:center;overflow-y:auto}
+#result{display:flex;flex-direction:column;gap:13px;text-align:center;overflow-y:auto}
+#result>:first-child{margin-top:auto}#result>:last-child{margin-bottom:auto}
+#result>*{flex:none}
 #result h2{font-family:var(--display);font-weight:400;font-size:clamp(44px,13vw,70px);line-height:1}
 .final{font-family:var(--display);font-size:clamp(30px,9vw,44px);overflow-wrap:anywhere}
 #rStars{font-size:50px;color:var(--gold);letter-spacing:4px}
@@ -117,6 +119,43 @@ canvas{position:absolute;inset:0;display:block;touch-action:none;cursor:pointer}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn{font-family:var(--display);font-size:20px;padding:13px 8px;border-radius:12px;background:var(--panel-2)}
 .btn.main{background:var(--red);box-shadow:0 5px 0 var(--red-deep)}
+
+/* Who has the ball */
+.poss{position:absolute;left:50%;top:6px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:5px 13px 5px 7px;border-radius:20px;border:2px solid #fff;font-family:var(--display);font-size:17px;white-space:nowrap;pointer-events:none;box-shadow:0 3px 8px #000a;z-index:2}
+.poss i{width:17px;height:17px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#111 0 28%,#fff 30%);border:1px solid #111;flex:none}
+.poss.us{background:var(--red)}.poss.them{background:#2a6be2}
+
+/* Trophies */
+.next-goal{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;text-align:left}
+.next-goal small{display:block;color:var(--gold);font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.05em}
+.next-goal b{display:block;font-size:17px;line-height:1.25}
+.bar{height:9px;border-radius:5px;background:#ffffff1f;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--gold);border-radius:5px}
+.cab-btn{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:11px;font-family:var(--display);font-size:21px;display:flex;justify-content:center;align-items:center;gap:8px}
+.cab-btn svg{width:24px;height:24px}
+#cabinet{display:flex;flex-direction:column;gap:10px}
+.cab-head{display:grid;grid-template-columns:46px 1fr;gap:10px;align-items:center}
+.cab-head h2{font-family:var(--display);font-weight:400;font-size:clamp(28px,8vw,38px);line-height:1}
+.cab-head p{color:var(--gold);font-weight:700}
+.shelf{display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1;min-height:0;padding-bottom:8px}
+.cup{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;grid-template-columns:64px minmax(0,1fr);gap:11px}
+.cup.won{border-color:var(--gold);background:linear-gradient(135deg,#3a3213,var(--panel) 60%)}
+.cup>svg{width:64px;height:auto;display:block}
+.cup strong{font-family:var(--display);font-weight:400;font-size:22px;display:block;line-height:1.1}
+.cup ul{list-style:none;margin:5px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.cup li{font-size:15.5px;line-height:1.2}
+.cup li.ok{color:var(--good);font-weight:700}
+.cup li .bar{margin-top:3px;height:7px}
+.cup.final{border-width:2px}
+.reset{background:none;color:var(--muted);text-decoration:underline;padding:8px;font-size:15px}
+#rNew{display:flex;flex-direction:column;gap:5px;font-weight:700;color:var(--good)}
+.award{position:fixed;inset:0;z-index:20;background:#050b18f2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px max(16px,env(safe-area-inset-right,0px))}
+.award small{color:var(--gold);font-weight:700;font-size:18px}
+.award h2{font-family:var(--display);font-weight:400;font-size:clamp(34px,10vw,54px);line-height:1.02;text-wrap:balance}
+.award svg{width:min(52vw,210px);height:auto;animation:cupin .7s cubic-bezier(.2,1.5,.4,1) both;filter:drop-shadow(0 0 28px #ffc92899)}
+.award .cta{margin:8px 0 0;max-width:340px}
+@keyframes cupin{from{transform:scale(.3) rotate(-12deg);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.award svg{animation:none}}
 
 @media (orientation:landscape) and (max-height:560px){
   .screen{max-width:none}
@@ -135,6 +174,7 @@ body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,
   <div class="top">
     <button class="icon-btn" id="back" aria-label="Terug" data-fr-aria="Retour" hidden>←</button>
     <div class="steps" id="steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <button class="icon-btn" id="openCab" aria-label="Mijn bekers" data-fr-aria="Mes trophées"></button>
     <button class="icon-btn" id="soundHome" aria-label="Geluid aan of uit" data-fr-aria="Son activé ou coupé">🔊</button>
   </div>
 
@@ -175,6 +215,7 @@ body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,
   <div class="step" id="s4" hidden>
     <h2 data-fr="Choisis ton défi">Kies je match</h2>
     <p class="summary" id="summary"></p>
+    <div class="next-goal" id="nextGoal"></div>
     <div class="levels" id="levels"></div>
     <div class="row">
       <strong data-fr="Vitesse">Snelheid</strong>
@@ -195,6 +236,7 @@ body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,
   <div class="meter"><span class="chip" id="chip"></span><div class="timer"><i id="timeBar"></i></div></div>
   <div class="pitch-wrap" id="wrap">
     <canvas id="cv" aria-label="Voetbalveld. Tik waar jij moet staan." data-fr-aria="Terrain de foot. Touche l’endroit où te placer."></canvas>
+    <div class="poss" id="poss" hidden><i></i><span id="possText"></span></div>
     <div class="banner" id="banner" hidden></div>
   </div>
   <div class="dock">
@@ -220,11 +262,31 @@ body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,
     <div class="d"><b id="rDicht"></b><span data-fr="fois bien fermé">keer goed dicht</span></div>
   </div>
   <p id="rTip"></p>
+  <div id="rNew"></div>
+  <div class="next-goal" id="rNext"></div>
+  <button class="cab-btn" id="rCab"></button>
   <div class="actions">
     <button class="btn" id="rMenu" data-fr="Autre poste">Andere plek</button>
     <button class="btn main" id="rAgain" data-fr="Encore un match">Nog een match</button>
   </div>
 </section>
+
+<section id="cabinet" class="screen" hidden>
+  <div class="cab-head">
+    <button class="icon-btn" id="cabBack" aria-label="Terug" data-fr-aria="Retour">←</button>
+    <div><h2 id="cabTitle"></h2><p id="cabCount"></p></div>
+  </div>
+  <div class="shelf" id="shelf"></div>
+  <button class="reset" id="cabReset"></button>
+</section>
+
+<div class="award" id="award" role="dialog" aria-modal="true" hidden>
+  <small id="awardKicker"></small>
+  <div id="awardCup"></div>
+  <h2 id="awardName"></h2>
+  <p id="awardText"></p>
+  <button class="cta" id="awardGo"></button>
+</div>
 
 <script>
 "use strict";
@@ -340,8 +402,68 @@ const SITS=[
  S('ST','dicht',[40,30],[42,46],['Jij bent de eerste verdediger. Zet druk!','Tu es le premier défenseur. Mets la pression !'],[40,16],'BEHIND',[42,92],'BACK',{press:true}),
  S('ST','dicht',[50,8],[50,36],['Hun keeper heeft de bal. Sluit de pass naar het midden.','Leur gardien a le ballon. Ferme la passe vers le milieu.'],[50,18],'CLOSE',[50,84],'BACK',{press:true}),
  S('ST','dicht',[50,64],[50,80],['Bal voorbij? Kom terug, achter de bal.','Ballon passé ? Reviens derrière le ballon.'],[50,40],'BEHIND',[10,40],'WIDE'),
- S('ST','dicht',[15,60],[38,72],['Bal op de kant? Kom naar het midden om te helpen.','Ballon sur le côté ? Viens au milieu pour aider.'],[38,34],'UP',[85,50],'FAR')
+ S('ST','dicht',[15,60],[38,72],['Bal op de kant? Kom naar het midden om te helpen.','Ballon sur le côté ? Viens au milieu pour aider.'],[38,34],'UP',[85,50],'FAR'),
+ // Extra moments for every position
+ S('GK','open',[14,88],[34,118],['Bal op de flank? Schuif mee naar die kant.','Ballon sur le côté ? Glisse de ce côté.'],[78,124],'HIDE',[14,70],'OUT'),
+ S('GK','open',[50,100],[50,122],['Je maat is onder druk. Sta klaar, recht achter hem.','Ton équipier est sous pression. Sois prêt, juste derrière lui.'],[50,137],'LINE',[50,90],'OUT'),
+ S('GK','dicht',[82,90],[56,124],['Bal op de kant? Schuif mee in je doel.','Ballon sur le côté ? Glisse dans ton but.'],[24,124],'SIDE',[56,98],'OUT'),
+ S('GK','dicht',[50,76],[50,116],['Ze komen naar voor. Sta klaar, voor je doel.','Ils avancent. Sois prêt, devant ton but.'],[50,137],'LINE',[14,118],'SIDE'),
+ S('CB','open',[78,100],[46,108],['Bal aan de overkant? Schuif mee naar het midden.','Ballon de l’autre côté ? Glisse vers le milieu.'],[12,116],'FAR',[78,112],'CLOSE'),
+ S('CB','open',[30,60],[36,88],['Je maat dribbelt naar voor. Volg op afstand.','Ton équipier dribble vers l’avant. Suis-le à distance.'],[36,124],'BACK',[30,48],'BEHIND'),
+ S('CB','dicht',[50,60],[42,100],['Bal nog ver? Schuif op en blijf dicht bij je ploeg.','Ballon encore loin ? Monte et reste près de ton équipe.'],[42,130],'BACK',[50,48],'BEHIND'),
+ S('CB','dicht',[30,104],[40,122],['Bal dicht bij ons doel! Sta voor het doel.','Ballon près de notre but ! Place-toi devant le but.'],[30,92],'BEHIND',[82,118],'FAR'),
+ S('FB','open',[50,84],[8,62],['Bal in het midden? Loop hoog langs de zijlijn.','Ballon au milieu ? Monte le long de la ligne de touche.'],[36,92],'CLOSE',[10,112],'BACK'),
+ S('FB','open',[34,116],[8,100],['Maak je breed. Zo kan hij naar jou passen.','Écarte-toi. Il peut te faire la passe.'],[30,126],'CLOSE',[40,92],'BLOCK'),
+ S('FB','dicht',[10,62],[16,92],['De flankspeler komt. Wacht voor hem, niet achter hem.','L’ailier arrive. Attends-le devant lui, pas derrière.'],[10,48],'BEHIND',[50,100],'FAR'),
+ S('FB','dicht',[60,104],[36,118],['Bal dicht bij ons doel? Kom naar het doel toe.','Ballon près de notre but ? Viens vers le but.'],[8,110],'WIDE',[62,90],'BEHIND'),
+ S('CM','open',[85,78],[60,78],['Bal op de flank? Kom naar die kant om te helpen.','Ballon sur le côté ? Viens de ce côté pour aider.'],[14,78],'FAR',[85,62],'BEHIND'),
+ S('CM','open',[50,133],[32,100],['De keeper heeft de bal. Toon je op een vrije plek.','Le gardien a le ballon. Montre-toi sur une place libre.'],[50,118],'CLOSE',[50,54],'UP'),
+ S('CM','dicht',[50,90],[50,108],['Bal voorbij jou? Loop terug en help.','Ballon passé ? Reviens et aide.'],[50,72],'BEHIND',[12,108],'WIDE'),
+ S('CM','dicht',[30,40],[38,62],['Bal ver voor? Schuif op en sluit het midden.','Ballon loin devant ? Monte et ferme le milieu.'],[30,24],'BEHIND',[38,112],'BACK'),
+ S('W','open',[14,112],[8,84],['Je maat achter jou heeft de bal. Blijf breed en vraag hem.','Ton équipier derrière toi a le ballon. Reste large et demande-le.'],[14,102],'CLOSE',[50,72],'FAR'),
+ S('W','open',[50,40],[26,26],['Aanval! Loop naar het doel.','Attaque ! Cours vers le but.'],[10,70],'BACK',[50,30],'CLOSE'),
+ S('W','dicht',[40,100],[30,112],['Gevaar! Kom helemaal terug.','Danger ! Reviens tout en arrière.'],[12,70],'UP',[40,86],'BEHIND',{i11:[28,100]}),
+ S('W','dicht',[60,40],[38,56],['Bal nog ver voor? Schuif naar binnen en help druk zetten.','Ballon encore loin devant ? Rentre et aide à presser.'],[8,30],'WIDE',[60,24],'BEHIND'),
+ S('ST','open',[50,133],[50,62],['De keeper heeft de bal. Blijf hoog aan de middenlijn.','Le gardien a le ballon. Reste haut, vers la ligne médiane.'],[50,112],'BACK',[14,124],'FAR'),
+ S('ST','open',[22,38],[46,26],['Bal op de flank, vlak bij hun doel. Sta voor het doel!','Ballon sur le côté, près de leur but. Place-toi devant le but !'],[22,28],'CLOSE',[46,80],'BACK'),
+ S('ST','dicht',[82,26],[60,38],['Bal bij hun zijlijn. Schuif mee en zet druk.','Ballon près de leur ligne. Glisse et mets la pression.'],[20,26],'FAR',[82,12],'BEHIND',{press:true}),
+ S('ST','dicht',[50,92],[50,76],['Bal ver voorbij jou? Kom terug tot aan het midden.','Ballon loin derrière toi ? Reviens jusqu’au milieu.'],[50,30],'UP',[12,60],'WIDE')
 ];
+/* ========== Challenges and trophies ========== */
+const blankProgress=()=>({matches:0,wins:0,good:0,open:0,dicht:0,goals:0,fast:0,streak:0,clean:0,perfect:0,openP:0,dichtP:0,roles:[],positions:[],formats:[],threeStars:[],l3wins:0,l3match:0,done:[],cups:[]});
+const C=(id,nl,fr,cur,goal)=>({id,nl,fr,cur,goal});
+const CUPS=[
+ {id:'start',n:['Eerste Stap','Premiers Pas'],col:['#e8a36b','#9c5a2b'],ch:[
+  C('m1','Speel een match','Joue un match',p=>p.matches,1),
+  C('g5','Kies 5 keer goed','Choisis bien 5 fois',p=>p.good,5),
+  C('w1','Win een match','Gagne un match',p=>p.wins,1)]},
+ {id:'open',n:['Open Beker','Coupe Ouvrir'],col:['#ffe067','#c78f00'],ch:[
+  C('o15','Kies 15 keer goed OPEN','Choisis bien OUVRIR 15 fois',p=>p.open,15),
+  C('g5a','Maak 5 goals','Marque 5 buts',p=>p.goals,5),
+  C('op','Alles goed OPEN in één match','Tout bon en OUVRIR dans un match',p=>p.openP,1)]},
+ {id:'dicht',n:['Dichte Muur','Le Mur'],col:['#b6f6f7','#2f9396'],ch:[
+  C('d15','Kies 15 keer goed DICHT','Choisis bien FERMER 15 fois',p=>p.dicht,15),
+  C('cs','Speel een match zonder tegengoal','Joue un match sans but encaissé',p=>p.clean,1),
+  C('dp','Alles goed DICHT in één match','Tout bon en FERMER dans un match',p=>p.dichtP,1)]},
+ {id:'flash',n:['Bliksem','Éclair'],col:['#d3b5ff','#7a45d6'],ch:[
+  C('f10','Kies 10 keer goed en snel (snelheid Match)','Choisis bien et vite 10 fois (vitesse Match)',p=>p.fast,10),
+  C('s5','Kies 5 keer na elkaar goed','Choisis bien 5 fois de suite',p=>p.streak,5),
+  C('s8','Kies 8 keer na elkaar goed','Choisis bien 8 fois de suite',p=>p.streak,8)]},
+ {id:'all',n:['Alleskunner','Joueur Complet'],col:['#a4f2b4','#2c9455'],ch:[
+  C('r3','Speel op 3 soorten plekken','Joue à 3 types de postes',p=>p.roles.length,3),
+  C('r6','Speel op alle 6 soorten plekken','Joue aux 6 types de postes',p=>p.roles.length,6),
+  C('f3','Speel 5, 8 en 11 tegen 11','Joue à 5, 8 et 11 contre 11',p=>p.formats.length,3)]},
+ {id:'boss',n:['Veldbaas','Chef du Terrain'],col:['#f2f4f8','#8d97a8'],ch:[
+  C('l3w','Win 5 keer de Echte match','Gagne 5 fois le Vrai match',p=>p.l3wins,5),
+  C('l3m','Win de Echte match op snelheid Match','Gagne le Vrai match en vitesse Match',p=>p.l3match,1),
+  C('3s','Haal 3 sterren in alle 3 de matchen','Obtiens 3 étoiles aux 3 défis',p=>p.threeStars.length,3)]}
+];
+const FINAL_CUP={id:'final',n:['Find the Space Cup','Find the Space Cup'],col:['#fff1a8','#e0a800']};
+const cupWon=(cup,p)=>cup.ch.every(c=>c.cur(p)>=c.goal);
+function cupSVG(col,won=true){
+  const a=won?col[0]:'#47597a',b=won?col[1]:'#2c3b58',id='g'+Math.random().toString(36).slice(2,8);
+  return `<svg viewBox="0 0 100 110" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="${a}"/><stop offset=".55" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><path d="M24 16H8c0 24 8 36 24 39M76 16h16c0 24-8 36-24 39" fill="none" stroke="${b}" stroke-width="7"/><path d="M22 6h56c0 44-8 62-28 62S22 50 22 6z" fill="url(#${id})"/><rect x="43" y="66" width="14" height="20" fill="${b}"/><rect x="29" y="84" width="42" height="9" rx="2" fill="url(#${id})"/><rect x="22" y="93" width="56" height="12" rx="3" fill="${b}"/>${won?'<path d="M33 15c1 17 4 29 10 38" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="5" stroke-linecap="round"/>':'<rect x="39" y="30" width="22" height="17" rx="3" fill="#8fa2c3"/><path d="M43 30v-5a7 7 0 0 1 14 0v5" fill="none" stroke="#8fa2c3" stroke-width="4"/>'}</svg>`;
+}
 const LEVELS=[
  {n:['Open of dicht?','Ouvrir ou fermer ?'],s:['Kijk wie de bal heeft en kies','Regarde qui a le ballon et choisis'],time:[3,2.2]},
  {n:['Kies je plek','Choisis ta place'],s:['Tik op de beste ring','Touche le meilleur cercle'],time:[4,3]},
@@ -350,13 +472,16 @@ const LEVELS=[
 const ACTIONS=8;
 
 /* ========== Helpers ========== */
-const store={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const memoryStore=new Map();
+const store={get(k,d){if(memoryStore.has(k))return JSON.parse(memoryStore.get(k));try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){memoryStore.set(k,JSON.stringify(v));try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const rnd=a=>a[Math.floor(Math.random()*a.length)];
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const MIRROR=(p,f)=>f?[100-p[0],p[1]]:p.slice();
+const wob=m=>(Math.random()*2-1)*m;
+const seenSit=new Map();
 
 /* ========== Sound ========== */
 let soundOn=store.get('veld-sound',true),ac=null;
@@ -485,7 +610,7 @@ function stepTweens(){const done=[];tweens=tweens.filter(x=>{const p=clamp((cloc
 /* ========== Scene state ========== */
 const SKIN=['#f2c9a5','#8d5a3a','#c98d62','#5c3a26','#e6b48a','#a56f49'];
 let us=[],them=[],me=null,gkUs=null,gkThem=null;
-const ball={x:50,y:70,z:0,owner:null,spin:0,from:null,to:null,h:0};
+const ball={x:50,y:70,z:0,owner:null,spin:0,from:null,to:null,h:0,trail:[]};
 let view={},particles=[],flash=0,shake=0,bulbs=0;
 function mkActor(team,x,y,i,extra={}){return{team,x,y,px:x,py:y,phase:Math.random()*6,move:0,skin:SKIN[(i*7+(team==='us'?1:3))%SKIN.length],hair:i%3,...extra}}
 function buildTeams(){
@@ -508,15 +633,20 @@ function shape(slots,attackUp,possess,bx,by){
 function compose(sit,slot){
   const f=FORMATS[setup.fmt];
   const flip=slot.x>50||(slot.x===50&&Math.random()<.5);
-  const ball0=MIRROR(sit.ball,flip);
+  /* Every moment shifts a little, so the same idea never looks exactly the same twice. */
+  const keeperBall=sit.ball[1]>126||sit.ball[1]<14,gkRole=slot.role==='GK';
+  const dx=wob(gkRole?2:keeperBall?0:6),dy=gkRole||keeperBall?0:wob(5);
+  const nudge=p=>[clamp(p[0]+dx,5,95),clamp(p[1]+dy,6,137)];
+  const ball0=keeperBall?MIRROR(sit.ball,flip):nudge(MIRROR(sit.ball,flip));
   let idealSrc=(setup.fmt===11&&sit.i11)?sit.i11:sit.ideal;
-  const ideal=MIRROR(idealSrc,flip);
-  const decoys=sit.d.map(([p,txt])=>({x:MIRROR(p,flip)[0],y:p[1],tip:txt,block:txt===D.BLOCK}));
-  const forced=(sit.f||[]).map(p=>MIRROR(p,flip));
+  const ideal=nudge(MIRROR(idealSrc,flip));
+  const decoys=sit.d.map(([p,txt])=>{const q=nudge(MIRROR(p,flip));return{x:q[0],y:q[1],tip:txt,block:txt===D.BLOCK}});
+  const forced=(sit.f||[]).map(p=>nudge(MIRROR(p,flip)));
   decoys.filter(d=>d.block).forEach(d=>forced.push([d.x,d.y]));
   const isOpen=sit.s==='open',bx=ball0[0],by=ball0[1];
   const U_=shape(f.slots,true,isOpen,bx,by),T_=shape(f.slots,false,!isOpen,bx,by);
-  const pos={us:U_.map(o=>({...o})),them:T_.map(o=>({...o}))};
+  const loose=o=>({x:clamp(o.x+wob(4),6,94),y:clamp(o.y+wob(4),8,132)});
+  const pos={us:U_.map((o,i)=>i?loose(o):{...o}),them:T_.map((o,i)=>i?loose(o):{...o})};
   /* The carrier stands on the ball. Keepers carry only when the ball is at their goal. */
   const nearest=(list,skip)=>{let bi=-1,bd=1e9;list.forEach((o,i)=>{if(skip(i))return;const v=Math.hypot(o.x-bx,o.y-by);if(v<bd){bd=v;bi=i}});return bi};
   const meIdx=f.slots.findIndex(s=>s.id===setup.pos);
@@ -561,7 +691,10 @@ function compose(sit,slot){
 function pickSituations(){
   const slot=FORMATS[setup.fmt].slots.find(s=>s.id===setup.pos);
   const pool=SITS.filter(x=>x.role===slot.role);
-  const op=shuffle(pool.filter(x=>x.s==='open')).slice(0,ACTIONS/2),di=shuffle(pool.filter(x=>x.s==='dicht')).slice(0,ACTIONS/2);
+  /* Least recently played first, so a new match brings new moments. */
+  const fresh=list=>shuffle(list).sort((a,b)=>(seenSit.get(a)||0)-(seenSit.get(b)||0)).slice(0,ACTIONS/2);
+  const op=fresh(pool.filter(x=>x.s==='open')),di=fresh(pool.filter(x=>x.s==='dicht'));
+  [...op,...di].forEach(x=>seenSit.set(x,(seenSit.get(x)||0)+1));
   const out=[];let last='',run=0;
   while(op.length||di.length){
     let src=!op.length?di:!di.length?op:(Math.random()<.5?op:di);
@@ -629,12 +762,32 @@ function drawBall(){
   const c=ctx;
   if(ball.owner){const a=ball.owner,dir=a.team==='us'?-1:1;ball.x=a.x+1.5;ball.y=a.y+dir*.9;ball.z=0}
   else if(ball.from&&ball.to){const L=Math.hypot(ball.to.x-ball.from.x,ball.to.y-ball.from.y)||1,f=clamp(Math.hypot(ball.x-ball.from.x,ball.y-ball.from.y)/L,0,1);ball.z=ball.h*4*f*(1-f)}
-  const o=proj(ball.x,ball.y),sz=FORMATS[setup.fmt].size,r=Math.max(3,2.1*U*o.s*sz);
+  const o=proj(ball.x,ball.y),sz=FORMATS[setup.fmt].size,r=Math.max(4.6,2.7*U*o.s*Math.max(sz,.9));
+  if(!ball.owner){ball.trail.push({x:o.x,y:o.y-r*.9-ball.z*U*o.s});if(ball.trail.length>9)ball.trail.shift();ball.trail.forEach((q,i)=>{c.globalAlpha=(i+1)/ball.trail.length*.55;c.fillStyle='#fff';c.beginPath();c.arc(q.x,q.y,r*(i+1)/ball.trail.length*.85,0,7);c.fill()});c.globalAlpha=1}else ball.trail.length=0;
   c.fillStyle='rgba(0,10,5,.45)';c.beginPath();c.ellipse(o.x+ball.z*.25*U*o.s,o.y+.2*r,r*1.05,r*.5,0,0,7);c.fill();
   const by=o.y-r*.9-ball.z*U*o.s;
   const g=c.createRadialGradient(o.x-r*.35,by-r*.4,r*.1,o.x,by,r);g.addColorStop(0,'#fff');g.addColorStop(1,'#c8ced8');
   c.fillStyle=g;c.beginPath();c.arc(o.x,by,r,0,7);c.fill();c.strokeStyle='#20242c';c.lineWidth=Math.max(.6,r*.13);c.stroke();
   c.fillStyle='#14171f';for(let i=0;i<3;i++){const an=ball.spin+i*2.1;c.beginPath();c.arc(o.x+Math.cos(an)*r*.48,by+Math.sin(an)*r*.48,r*.25,0,7);c.fill()}
+}
+function drawBallPin(){
+  const a=ball.owner;if(!a)return;
+  const c=ctx,o=proj(a.x,a.y),u=U*o.s*FORMATS[setup.fmt].size*1.02,bob=reduced?0:Math.sin(clock/170)*3;
+  const r=Math.max(10,2.6*u);let y=o.y-15.5*u-r-6+bob;
+  if(a===me)y-=Math.max(26,6.5*u);
+  y=Math.max(r+4,y);
+  const x=clamp(o.x,r+4,W-r-4),col=a.team==='us'?'#e0212f':'#2a6be2';
+  c.fillStyle=col;c.strokeStyle='#fff';c.lineWidth=2.5;
+  c.beginPath();c.arc(x,y,r,0,7);c.moveTo(x-r*.55,y+r*.8);c.lineTo(x,y+r*1.65);c.lineTo(x+r*.55,y+r*.8);c.closePath();c.fill();c.stroke();
+  c.fillStyle='#fff';c.beginPath();c.arc(x,y,r*.66,0,7);c.fill();
+  c.fillStyle='#111';c.beginPath();c.arc(x,y,r*.25,0,7);c.fill();
+  for(let i=0;i<5;i++){const n=ball.spin*.2+i*1.257;c.beginPath();c.arc(x+Math.cos(n)*r*.47,y+Math.sin(n)*r*.47,r*.1,0,7);c.fill()}
+}
+let possShown=null;
+function updatePossession(){
+  const a=ball.owner;if(!a||a.team===possShown)return;
+  possShown=a.team;const el=$('poss');el.hidden=false;el.className='poss '+(a.team==='us'?'us':'them');
+  $('possText').textContent=a.team==='us'?t('WIJ hebben de bal','ON a le ballon'):t('ZIJ hebben de bal','ILS ont le ballon');
 }
 function draw(){
   if(!bg)buildBackground();
@@ -649,7 +802,9 @@ function draw(){
     c.globalAlpha=.24;c.fillStyle=view.hullColor;c.fill();c.globalAlpha=1;c.strokeStyle=view.hullColor;c.lineWidth=2;c.setLineDash([7,5]);c.stroke();c.setLineDash([]);
   }
   /* Carrier and you */
-  if(ball.owner&&ball.owner!==me){const a=ball.owner;groundEllipse(a.x,a.y,4.6*FORMATS[setup.fmt].size,'rgba(255,255,255,.2)','#ffffff',1.6)}
+  if(ball.owner){const a=ball.owner,sz=FORMATS[setup.fmt].size,pul=reduced?0:Math.sin(clock/150)*.9,col=a.team==='us'?'255,70,85':'90,150,255';
+    groundEllipse(a.x,a.y,(9.4+pul)*sz,`rgba(${col},.32)`,'#ffffff',3);
+    groundEllipse(a.x,a.y,6.3*sz,'rgba(255,255,255,.55)',`rgb(${col})`,2.5)}
   if(me){const pulse=reduced?0:Math.sin(clock/180)*.8;groundEllipse(me.x,me.y,(5.6+pulse)*FORMATS[setup.fmt].size,'rgba(255,227,77,.28)','#ffe34d',2.4)}
   if(view.rings)view.rings.forEach(r=>{const pulse=reduced?0:Math.sin(clock/170)*.7;groundEllipse(r.x,r.y,7.5+pulse,'rgba(255,255,255,.3)','#fff',2,[7,5])});
   if(view.ghost){
@@ -665,6 +820,8 @@ function draw(){
   const castBall={y:ball.y,isBall:true};
   ball.spin+=ball.owner?.08:.32;
   [...all,castBall].sort((p,q)=>p.y-q.y).forEach(x=>x.isBall?drawBall():drawPlayer(x));
+  drawBallPin();
+  updatePossession();
   /* Near goal in front of everyone */
   drawGoal(c,137,FORMATS[setup.fmt],false);
   /* Confetti and flash */
@@ -682,7 +839,7 @@ const G_fmt=()=>setup.fmt;
 let G=null,deciding=null,token=0,goTimer=0,advance=null,tempo=store.get('veld-tempo','match');
 const slotOf=()=>FORMATS[setup.fmt].slots.find(s=>s.id===setup.pos);
 const roleName=s=>t(s.nl,s.fr);
-function show(id){['setup','play','result'].forEach(s=>$(s).hidden=s!==id);if(id==='play')resize()}
+function show(id){['setup','play','result','cabinet'].forEach(s=>$(s).hidden=s!==id);if(id==='play')resize()}
 function goStep(n){
   setup.step=n;[1,2,3,4].forEach(i=>$('s'+i).hidden=i!==n);
   [...$('steps').children].forEach((el,i)=>el.classList.toggle('on',i<n));
@@ -724,6 +881,7 @@ const starText=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function renderLevels(){
   const sel=slotOf();
   $('summary').textContent=`${setup.name} · ${p2(FORMATS[setup.fmt].name)} · ${sel?roleName(sel):''}`;
+  renderNextGoal($('nextGoal'));
   const box=$('levels');box.innerHTML='';
   LEVELS.forEach((l,i)=>{
     const n=store.get(`veld-stars-${setup.fmt}-${i}`,0),b=document.createElement('button');b.className='level';b.id='level'+i;
@@ -757,7 +915,7 @@ async function startMatch(lv){
   const my=++token;tweens.forEach(x=>x.res());tweens=[];
   try{speechSynthesis.cancel()}catch(e){}
   buildTeams();clearScene();bg=null;
-  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,list:pickSituations()};
+  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,list:pickSituations()};
   $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
   audio();updateScore();setBar(1);setDock('');show('play');
   const sel=slotOf();$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
@@ -768,6 +926,7 @@ async function startMatch(lv){
 }
 async function playAction(sit,my){
   view={};setDock('');hideBanner();ball.owner=null;ball.from=ball.to=null;ball.z=0;
+  possShown=null;$('poss').hidden=true;
   const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(G.i/(ACTIONS-1)))*(tempo==='slow'?1.7:1)*1000;
   setBar(1);
   const c=compose(sit,slotOf());
@@ -812,6 +971,7 @@ async function resolveAction(c,a,ms,total,carrier,my){
   });
   view.hull=true;view.hullColor=isOpen?'#ffc928':'#7fe7ea';
   const fast=ms<total*.5;let title,kind;
+  if(j.res==='good'){G.streak++;G.best=Math.max(G.best,G.streak);if(fast&&tempo!=='slow')G.fast++}else G.streak=0;
   if(j.res==='good'){
     kind='good';G.pts+=fast?3:2;
     if(isOpen){G.open++;const scored=await sceneGoal(carrier,my);if(!alive())return;title=scored?rnd([t(`Goal van ${setup.name}!`,`But de ${setup.name} !`),t('Amai, goal!','Waouh, but !')]):rnd([t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),t('Schoon open!','Belle ouverture !')])}
@@ -883,7 +1043,92 @@ function finish(){
   $('rStars').textContent=starText(n);$('rStars').setAttribute('aria-label',n+'/3');
   $('rOpen').textContent=`${G.open}/4`;$('rDicht').textContent=`${G.dicht}/4`;
   $('rTip').textContent=G.open===4&&G.dicht===4?t(`Alles goed, ${setup.name}! Jij bent een baas op het veld.`,`Tout est bon, ${setup.name} ! Tu es un chef sur le terrain.`):G.open<G.dicht?t('Oefen OPEN: wij hebben de bal, maak het veld groot.','Entraîne-toi à OUVRIR : on a le ballon, rends le terrain grand.'):G.dicht<G.open?t('Oefen DICHT: zij hebben de bal, maak het veld klein.','Entraîne-toi à FERMER : ils ont le ballon, rends le terrain petit.'):t('Kijk altijd eerst: wie heeft de bal?','Regarde toujours d’abord : qui a le ballon ?');
+  const news=recordMatch(n);
   sfx.whistle();show('result');
+  renderResultGoals(news);
+  queueAwards(news.cups);
+}
+/* ========== Progress ========== */
+const progressKey=()=>'fts-progress-'+(setup.name||'').toLowerCase();
+function loadProgress(){const v=store.get(progressKey(),null);return Object.assign(blankProgress(),v&&typeof v==='object'?v:{})}
+const addUnique=(list,v)=>{if(!list.includes(v))list.push(v)};
+function recordMatch(starsWon){
+  const p=loadProgress(),slot=slotOf();
+  p.matches++;p.good+=G.open+G.dicht;p.open+=G.open;p.dicht+=G.dicht;p.goals+=G.us;p.fast+=G.fast;p.streak=Math.max(p.streak,G.best);
+  if(G.us>G.them)p.wins++;if(G.them===0)p.clean++;
+  if(G.open===4)p.openP++;if(G.dicht===4)p.dichtP++;if(G.open===4&&G.dicht===4)p.perfect++;
+  addUnique(p.roles,slot.role);addUnique(p.positions,setup.fmt+'-'+slot.id);addUnique(p.formats,setup.fmt);
+  if(starsWon===3)addUnique(p.threeStars,G.lv);
+  if(G.lv===2&&G.us>G.them){p.l3wins++;if(tempo!=='slow')p.l3match++}
+  const newChallenges=[],newCups=[];
+  CUPS.forEach(cup=>{
+    cup.ch.forEach(c=>{if(c.cur(p)>=c.goal&&!p.done.includes(c.id)){p.done.push(c.id);newChallenges.push(c)}});
+    if(cupWon(cup,p)&&!p.cups.includes(cup.id)){p.cups.push(cup.id);newCups.push(cup)}
+  });
+  if(CUPS.every(cup=>p.cups.includes(cup.id))&&!p.cups.includes(FINAL_CUP.id)){p.cups.push(FINAL_CUP.id);newCups.push(FINAL_CUP)}
+  store.set(progressKey(),p);
+  return{challenges:newChallenges,cups:newCups};
+}
+function nextChallenge(p){
+  let best=null,score=-1;
+  CUPS.forEach(cup=>cup.ch.forEach(c=>{const v=c.cur(p);if(v>=c.goal)return;const r=v/c.goal;if(r>score){score=r;best={c,v,cup}}}));
+  return best;
+}
+function renderNextGoal(el){
+  const p=loadProgress(),x=nextChallenge(p);
+  if(!x){el.innerHTML='';const b=document.createElement('b');b.textContent=t('Alle bekers gewonnen! Jij bent de baas.','Tous les trophées gagnés ! Tu es le chef.');el.appendChild(b);return}
+  el.innerHTML=`<small></small><b></b><div class="bar"><i style="width:${Math.round(x.v/x.c.goal*100)}%"></i></div>`;
+  el.querySelector('small').textContent=`${t('Volgend doel','Prochain défi')} · ${p2(x.cup.n)}`;
+  el.querySelector('b').textContent=`${t(x.c.nl,x.c.fr)} (${Math.min(x.v,x.c.goal)}/${x.c.goal})`;
+}
+function renderResultGoals(news){
+  const box=$('rNew');box.innerHTML='';
+  news.challenges.forEach(c=>{const d=document.createElement('div');d.textContent='✓ '+t(c.nl,c.fr);box.appendChild(d)});
+  renderNextGoal($('rNext'));
+  $('rCab').innerHTML=cupSVG(FINAL_CUP.col)+'<span></span>';$('rCab').querySelector('span').textContent=t('Mijn bekers','Mes trophées');
+}
+let awardQueue=[];
+function queueAwards(cups){awardQueue=cups.slice();showNextAward()}
+function showNextAward(){
+  const cup=awardQueue.shift();
+  if(!cup){$('award').hidden=true;return}
+  $('awardCup').innerHTML=cupSVG(cup.col);
+  $('awardKicker').textContent=cup===FINAL_CUP?t('De grootste beker!','Le plus grand trophée !'):t('Nieuwe beker!','Nouveau trophée !');
+  $('awardName').textContent=p2(cup.n);
+  $('awardText').textContent=t(`Proficiat, ${setup.name}!`,`Bravo, ${setup.name} !`);
+  $('awardGo').textContent=t('Hoera!','Super !');
+  $('award').hidden=false;sfx.goal();speak(t(`Proficiat, ${setup.name}! Nieuwe beker: `,`Bravo, ${setup.name} ! Nouveau trophée : `)+p2(cup.n));
+}
+let cabReturn='setup',resetArmed=false;
+function renderCabinet(){
+  const p=loadProgress(),won=[...CUPS,FINAL_CUP].filter(c=>p.cups.includes(c.id)).length;
+  $('cabTitle').textContent=t(`Bekers van ${setup.name}`,`Trophées de ${setup.name}`);
+  $('cabCount').textContent=`${won}/${CUPS.length+1} ${t('gewonnen','gagnés')}`;
+  const box=$('shelf');box.innerHTML='';
+  const finalWon=p.cups.includes(FINAL_CUP.id),fin=document.createElement('div');
+  fin.className='cup final'+(finalWon?' won':'');
+  fin.innerHTML=cupSVG(FINAL_CUP.col,finalWon)+'<div><strong></strong><ul><li></li></ul></div>';
+  fin.querySelector('strong').textContent=p2(FINAL_CUP.n);
+  fin.querySelector('li').textContent=t('Win alle andere bekers.','Gagne tous les autres trophées.');
+  box.appendChild(fin);
+  CUPS.forEach(cup=>{
+    const has=p.cups.includes(cup.id),d=document.createElement('div');d.className='cup'+(has?' won':'');
+    d.innerHTML=cupSVG(cup.col,has)+'<div><strong></strong><ul></ul></div>';
+    d.querySelector('strong').textContent=p2(cup.n);
+    const ul=d.querySelector('ul');
+    cup.ch.forEach(c=>{
+      const v=Math.min(c.cur(p),c.goal),li=document.createElement('li'),ok=v>=c.goal;li.className=ok?'ok':'';
+      li.textContent=(ok?'✓ ':'')+t(c.nl,c.fr)+(ok?'':` (${v}/${c.goal})`);
+      if(!ok){const bar=document.createElement('div');bar.className='bar';bar.innerHTML=`<i style="width:${Math.round(v/c.goal*100)}%"></i>`;li.appendChild(bar)}
+      ul.appendChild(li);
+    });
+    box.appendChild(d);
+  });
+  resetArmed=false;$('cabReset').textContent=t('Opnieuw beginnen','Tout recommencer');
+}
+function openCabinet(from){
+  if(!setup.name){const n=$('nameInput').value.trim();if(!n){$('nameErr').textContent=t('Schrijf eerst je naam.','Écris d’abord ton prénom.');$('nameInput').focus();return}setup.name=n}
+  cabReturn=from;renderCabinet();show('cabinet');
 }
 
 /* ========== Input ========== */
@@ -896,6 +1141,12 @@ cv.addEventListener('pointerdown',e=>{
 $('btnOpen').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'open'})};
 $('btnDicht').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'dicht'})};
 $('fbGo').onclick=()=>{if(advance)advance()};
+$('openCab').onclick=()=>{if(setup.step===1&&$('nameInput').value.trim())setup.name=$('nameInput').value.trim();openCabinet('setup')};
+$('rCab').onclick=()=>openCabinet('result');
+$('cabBack').onclick=()=>{show(cabReturn);if(cabReturn==='setup'&&setup.step===4)renderLevels();if(cabReturn==='result')renderNextGoal($('rNext'))};
+$('cabReset').onclick=()=>{if(!resetArmed){resetArmed=true;$('cabReset').textContent=t('Zeker? Tik nog een keer om alles te wissen.','Sûr ? Touche encore une fois pour tout effacer.');return}store.set(progressKey(),blankProgress());renderCabinet()};
+$('awardGo').onclick=showNextAward;
+$('openCab').innerHTML=cupSVG(FINAL_CUP.col);$('openCab').style.padding='8px';
 $('soundHome').onclick=toggleSound;$('soundPlay').onclick=toggleSound;
 $('nameInput').addEventListener('input',()=>{$('nameErr').textContent='';updateHero()});
 $('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('toFormat').click()}});
