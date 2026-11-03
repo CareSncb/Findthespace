@@ -834,7 +834,7 @@ function initGL(){
     if(!window.THREE)return;
     const T=THREE,canvas=$('gl');
     const r=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-    GL.pixel=Math.min(window.devicePixelRatio||1,2);
+    GL.pixel=Math.min(window.devicePixelRatio||1,1.75);
     r.setPixelRatio(GL.pixel);
     const post=r.capabilities.isWebGL2&&T.EffectComposer&&T.UnrealBloomPass;
     GL.post=!!post;
@@ -843,7 +843,7 @@ function initGL(){
     const scene=new T.Scene();scene.fog=new T.FogExp2(0x0a1630,.0016);
     const cam=new T.PerspectiveCamera(36,1,1,1600);
     Object.assign(GL,{T,r,scene,cam,camPos:new T.Vector3(0,60,160),camLook:new T.Vector3(0,0,0),ray:new T.Raycaster(),v:new T.Vector3(),models:[],mats:new Map(),tex:new Map()});
-    GL.detail=GL.pixel>=2?2:1;GL.stage=0;
+    GL.detail=GL.pixel>=1.5?2:1;GL.stage=0;
     buildWorld();buildBallModel();buildGeo();buildExtras();buildFx();
     if(post)buildPost();
     try{const pm=new T.PMREMGenerator(r);GL.env=pm.fromScene(scene,.03).texture;scene.environment=GL.env;pm.dispose()}catch(e){}
@@ -958,7 +958,7 @@ function buildWorld(){
   /* Lights: four floodlight banks, one casts the crisp match shadow */
   scene.add(new T.HemisphereLight(0xb9ccff,0x12301e,.3));
   const key=new T.DirectionalLight(0xfff1dc,.86);key.position.set(-60,150,70);key.castShadow=true;
-  key.shadow.mapSize.set(GL.pixel>=2?3072:2048,GL.pixel>=2?3072:2048);Object.assign(key.shadow.camera,{left:-95,right:95,top:110,bottom:-110,near:20,far:330});key.shadow.bias=-.0006;key.shadow.radius=3;scene.add(key);GL.key=key;
+  key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-95,right:95,top:110,bottom:-110,near:20,far:330});key.shadow.bias=-.0006;key.shadow.radius=3;scene.add(key);GL.key=key;
   [[70,120,60,.3],[-70,120,-70,.22],[70,120,-70,.22]].forEach(([x,y,z,i])=>{const d=new T.DirectionalLight(0xdfe9ff,i);d.position.set(x,y,z);scene.add(d)});
   /* Night sky */
   const sky=new T.Mesh(new T.SphereGeometry(900,24,16),new T.MeshBasicMaterial({side:T.BackSide,fog:false,map:canvasTex(512,512,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);l.addColorStop(0,'#030713');l.addColorStop(.42,'#0a1838');l.addColorStop(.52,'#27416f');l.addColorStop(.56,'#0a1428');l.addColorStop(1,'#050a18');g.fillStyle=l;g.fillRect(0,0,w,h);g.fillStyle='#fff';for(let i=0;i<450;i++){g.globalAlpha=Math.random()*.8;g.fillRect(Math.random()*w,Math.random()*h*.42,1,1)}})}));scene.add(sky);
@@ -1078,7 +1078,7 @@ function buildGeo(){
    head:new T.SphereGeometry(.088,24,18),neck:new T.CylinderGeometry(.03,.035,.055,10),ear:new T.SphereGeometry(.019,8,6),nose:new T.SphereGeometry(.013,8,6),
    eye:new T.SphereGeometry(.0125,8,6),pupil:new T.SphereGeometry(.0072,6,5),brow:new T.BoxGeometry(.028,.006,.008),
    hairCap:new T.SphereGeometry(.092,20,12,0,Math.PI*2,0,Math.PI*.56),curl:new T.IcosahedronGeometry(.036,1),
-   boot:new T.SphereGeometry(.04,12,8),sole:new T.BoxGeometry(.06,.012,.14),sockBand:new T.CylinderGeometry(.031,.031,.022,10),band:new T.CylinderGeometry(.04,.04,.03,10),collar:new T.TorusGeometry(.033,.007,6,16)
+   boot:new T.SphereGeometry(.04,12,8),sole:new T.BoxGeometry(.06,.012,.14),sockBand:new T.CylinderGeometry(.039,.037,.034,12),band:new T.CylinderGeometry(.04,.04,.03,10),collar:new T.TorusGeometry(.033,.007,6,16)
   };
   [GL.geo.limbT,GL.geo.limb].forEach(g=>g.translate(0,-.11,0));[GL.geo.armU,GL.geo.armL].forEach(g=>g.translate(0,-.075,0));GL.geo.sleeve.translate(0,-.04,0);
 }
@@ -1103,11 +1103,11 @@ function blankPose(){return{hipX:[0,0],hipZ:[0,0],knee:[0,0],ankle:[0,0],armX:[0
 function animatePlayer(a,dt,ts,inMatch){
   const m=a.model;if(!m)return;
   const H=PLAYER_H*FORMATS[setup.fmt].size,dx=a.x-a.px,dz=a.y-a.py,dist=Math.hypot(dx,dz);a.px=a.x;a.py=a.y;
-  const inst=dt>0?dist/dt:0;a.sp=(a.sp||0)+(inst-(a.sp||0))*Math.min(1,dt*9);
-  const accel=(a.sp-(a.spPrev||0))/Math.max(dt,.001);a.spPrev=a.sp;a.accS=(a.accS||0)+(accel-(a.accS||0))*Math.min(1,dt*5);
+  const realDt=Math.max(GL.realDt||dt,.001),inst=dist/realDt;a.sp=(a.sp||0)+(inst-(a.sp||0))*(1-Math.exp(-realDt*10));
+  const accel=(a.sp-(a.spPrev||0))/realDt;a.spPrev=a.sp;a.accS=(a.accS||0)+(accel-(a.accS||0))*Math.min(1,dt*5);
   const run=clamp(a.sp/(H*1.9),0,1),seed=a.no*1.7+(a.team==='us'?0:3);
   /* Feet follow the ground: phase comes from distance, so strides never skate */
-  a.phase=(a.phase||seed)+dist/(H*1.35)*Math.PI*2+(run<.05?0:0);
+  a.phase=(a.phase||seed)+dist/(H*(.62+.8*run))*Math.PI*2;
   /* Face where you run, otherwise watch the ball */
   let want=m.yaw;
   const kicking=a.act&&a.act.type==='kick'&&a.faceT!==undefined;
@@ -1116,7 +1116,7 @@ function animatePlayer(a,dt,ts,inMatch){
   else if(a.sp>H*.25)want=Math.atan2(dx,dz);
   else if(Math.hypot(ball.x-a.x,ball.y-a.y)>1)want=Math.atan2(ball.x-a.x,ball.y-a.y);
   let d=want-m.yaw;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;
-  const turn=d*Math.min(1,dt*(kicking||a.skill?16:5+run*5));m.yaw+=turn;const yawRate=dt>0?turn/dt:0;
+  const turn=d*(1-Math.exp(-dt*(kicking||a.skill?14:6+run*3)));m.yaw+=turn;const yawRate=dt>0?turn/dt:0;
   const T=blankPose();
   /* Base pose: ready stance blended with the run cycle */
   const crouch=a.gk?.5:.18,breathe=Math.sin(ts/820+seed);
@@ -1140,7 +1140,7 @@ function animatePlayer(a,dt,ts,inMatch){
   if(a===GL.hero&&!inMatch&&GL.showHero&&!a.act){const q=(ts%1320)/1320,kick=Math.pow(Math.max(0,Math.cos(q*Math.PI*2)),6);T.hipX[1]=-.18-kick*.95;T.knee[1]=.55-kick*.28;T.ankle[1]=.2-kick*.5;T.armZ[0]=-.33;T.armZ[1]=.33;T.leanX=.1-kick*.12;T.rate=22}
   applyAction(a,T,ts);
   /* Damped joints give weight and blend every transition */
-  const j=m.j,k=Math.min(1,dt*T.rate),L=(o,key,v)=>{o[key]+=(v-o[key])*k};
+  const j=m.j,k=1-Math.exp(-dt*(T.rate===16?16+run*22:T.rate*1.2)),L=(o,key,v)=>{o[key]+=(v-o[key])*k};
   [0,1].forEach(i=>{L(j.hipX,i,T.hipX[i]);L(j.hipZ,i,T.hipZ[i]);L(j.knee,i,T.knee[i]);L(j.ankle,i,T.ankle[i]);L(j.armX,i,T.armX[i]);L(j.armZ,i,T.armZ[i]);L(j.elbow,i,T.elbow[i])});
   ['pelYaw','chestYaw','leanX','leanZ','headX','rootY','rootYaw'].forEach(n=>L(j,n,T[n]));
   [-1,1].forEach((sd,i)=>{const l=m.limbs[sd];
@@ -1150,10 +1150,10 @@ function animatePlayer(a,dt,ts,inMatch){
   /* Pelvis height comes from the longer leg, so a foot always meets the grass */
   const legLen=i=>{const h=j.hipX[i],kn=j.knee[i];return .205*Math.cos(h)*Math.cos(j.hipZ[i])+.215*Math.cos(h+kn)};
   const hipY=Math.max(legLen(0),legLen(1))+.035;
-  m.pelvis.position.y+=(hipY+.01*Math.abs(fc)*run+(a.gk?0:.002*breathe)-m.pelvis.position.y)*Math.min(1,dt*30);
+  m.pelvis.position.y+=(hipY+.01*Math.abs(fc)*run+(a.gk?0:.002*breathe)-m.pelvis.position.y)*(1-Math.exp(-dt*38));
   m.pelvis.rotation.set(j.leanX,j.pelYaw,j.leanZ);
   m.chest.rotation.set(.05*run+Math.sin(ts/820+seed)*.012,j.chestYaw,0);
-  if(m.headG){let hy=Math.atan2(ball.x-a.x,ball.y-a.y)-m.yaw-j.chestYaw-j.pelYaw;while(hy>Math.PI)hy-=Math.PI*2;while(hy<-Math.PI)hy+=Math.PI*2;m.headG.rotation.y+=(clamp(hy,-1.05,1.05)-m.headG.rotation.y)*Math.min(1,dt*7);m.headG.rotation.x+=(j.headX-j.leanX*.55-m.headG.rotation.x)*Math.min(1,dt*7)}
+  if(m.headG){let hy=Math.atan2(ball.x-a.x,ball.y-a.y)-m.yaw-j.chestYaw-j.pelYaw;while(hy>Math.PI)hy-=Math.PI*2;while(hy<-Math.PI)hy+=Math.PI*2;const hk=1-Math.exp(-dt*6);m.headG.rotation.y+=(clamp(hy,-1.05,1.05)-m.headG.rotation.y)*hk;m.headG.rotation.x+=(j.headX-j.leanX*.55-m.headG.rotation.x)*hk}
   m.root.visible=inMatch||!GL.showHero||a===GL.hero;
   m.root.position.set(a.x-50,j.rootY*H,a.y-70);m.root.rotation.y=m.yaw+j.rootYaw;
 }
@@ -1220,53 +1220,73 @@ function rimify(mt){
   return mt;
 }
 
+const playerGeoCache=new Map();
+function mergeParts(parts,boneList){
+  const T=GL.T;let vCount=0,iCount=0;parts.forEach(q=>{vCount+=q.g.attributes.position.count;iCount+=q.g.index?q.g.index.count:q.g.attributes.position.count});
+  const pos=new Float32Array(vCount*3),nor=new Float32Array(vCount*3),col=new Float32Array(vCount*3),si=new Uint16Array(vCount*4),sw=new Float32Array(vCount*4),idx=new Uint32Array(iCount);
+  let v=0,i=0;const P=new T.Vector3(),N=new T.Vector3(),nm=new T.Matrix3();
+  parts.forEach(q=>{
+    const g=q.g,gp=g.attributes.position,gn=g.attributes.normal,start=v;nm.getNormalMatrix(q.m);
+    for(let k=0;k<gp.count;k++){
+      P.fromBufferAttribute(gp,k).applyMatrix4(q.m);N.fromBufferAttribute(gn,k).applyMatrix3(nm).normalize();
+      pos.set([P.x,P.y,P.z],v*3);nor.set([N.x,N.y,N.z],v*3);col.set([q.c.r,q.c.g,q.c.b],v*3);si[v*4]=q.b;sw[v*4]=1;v++;
+    }
+    if(g.index){for(let k=0;k<g.index.count;k++)idx[i++]=g.index.getX(k)+start}else{for(let k=0;k<gp.count;k++)idx[i++]=start+k}
+  });
+  const out=new T.BufferGeometry();
+  out.setAttribute('position',new T.BufferAttribute(pos,3));out.setAttribute('normal',new T.BufferAttribute(nor,3));out.setAttribute('color',new T.BufferAttribute(col,3));
+  out.setAttribute('skinIndex',new T.BufferAttribute(si,4));out.setAttribute('skinWeight',new T.BufferAttribute(sw,4));out.setIndex(new T.BufferAttribute(idx,1));
+  return out;
+}
 function buildPlayer(a){
   const T=GL.T,geo=GL.geo,us_=a.team==='us',gk=a.gk,lod=setup.fmt===11&&!a.me&&a!==GL.hero?0:1;
   const main=gk?(us_?'#17a673':'#e8d93e'):(us_?kit.main:'#2a6be2'),hi=gk?(us_?'#38d39b':'#fbf08a'):(us_?kit.hi:'#5c95ff'),stripe=!gk&&us_?kit.stripe:null;
   const name=a.me?setup.name:(a===GL.hero?($('nameInput').value.trim()||''):'');
-  const cloth=c=>rimify(new T.MeshStandardMaterial({color:c,roughness:.68,envMapIntensity:.5}));
-  const skin=mat('skin'+a.skin,()=>rimify(new T.MeshStandardMaterial({color:a.skin,roughness:.58,envMapIntensity:.15})));
-  const sleeve=mat('sl'+main,()=>cloth(main));
-  const shirt=mat(`sh${main}${stripe}${a.no}${name.toUpperCase()}`,()=>rimify(new T.MeshStandardMaterial({map:shirtTex(main,hi,stripe,a.no,name.toUpperCase()),roughness:.66,envMapIntensity:.5})));
-  const shorts=mat('shorts'+(gk?'g':us_?'u':'t'),()=>cloth(gk?0x13332a:us_?0x141822:0xf4f6fb));
-  const trim=mat('trim'+main,()=>cloth(us_&&!gk?kit.main:main));
-  const sock=mat('sock'+(gk?main:us_?'w':'t'),()=>cloth(gk?main:us_?0xffffff:0x2a6be2));
-  const boots=[0x0c0f16,0xf2f4f8,0xff6a13,0x12d6c5,0xffd21f],bootC=boots[(a.no*3+(us_?0:1))%boots.length];
-  const boot=mat('boot'+bootC,()=>new T.MeshStandardMaterial({color:bootC,roughness:.22,metalness:.35,envMapIntensity:1.1}));
-  const hairC=[0x1c1410,0x3b2413,0x0f0f12][a.hair];
-  const hair=mat('hair'+a.hair,()=>new T.MeshStandardMaterial({color:hairC,roughness:.72}));
-  const M=(g,m,x,y,z,parent,shadow=true)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);o.castShadow=shadow;parent.add(o);return o};
-  const root=new T.Group(),pelvis=new T.Group(),chest=new T.Group();root.add(pelvis);pelvis.position.y=.46;pelvis.add(chest);chest.position.y=.05;
-  const CY=-.51,PY=-.46;
-  M(geo.hips,shorts,0,PY,0,pelvis).scale.z=.8;
-  M(geo.torso,shirt,0,CY,0,chest).scale.z=.74;
-  const col=M(geo.collar,sleeve,0,.797+CY,0,chest,false);col.rotation.x=Math.PI/2;
-  M(geo.neck,skin,0,.825+CY,0,chest,false);
-  const headG=new T.Group();headG.position.set(0,.91+CY,0);chest.add(headG);
-  const hd=M(geo.head,skin,0,0,0,headG);hd.scale.set(.96,1.05,1);
-  const hs=a.no%4;
-  if(hs===3&&lod){for(let i=0;i<14;i++){const an=i*2.399,yy=.03+i*.0046,r=.084-(i%5)*.004;M(geo.curl,hair,Math.cos(an)*r,yy,Math.sin(an)*r-.012,headG,false)}}
-  else{const cap=M(geo.hairCap,hair,0,.004,-.006,headG,false);cap.rotation.x=-.28;if(hs===1)cap.scale.set(1.04,1.16,1.06);if(hs===2)cap.scale.set(1,.9,1)}
-  if(lod){
-    const eyeW=mat('eyeW',()=>new T.MeshStandardMaterial({color:0xffffff,roughness:.25})),dark=mat('eye',()=>new T.MeshStandardMaterial({color:0x14100c,roughness:.2}));
-    [-1,1].forEach(sd=>{M(geo.ear,skin,sd*.086,.004,-.002,headG,false).scale.z=.65;M(geo.eye,eyeW,sd*.033,.01,.077,headG,false);M(geo.pupil,dark,sd*.033,.01,.087,headG,false);const b=M(geo.brow,hair,sd*.034,.032,.081,headG,false);b.rotation.z=sd*-.15});
-    M(geo.nose,skin,0,-.012,.087,headG,false);
-  }
-  const limbs={};
+  /* Skeleton */
+  const B=()=>new T.Bone(),bones=[],add=(parent,x,y,z)=>{const b=B();b.position.set(x,y,z);parent.add(b);bones.push(b);return b};
+  const root=new T.Group(),pelvis=B();pelvis.position.y=.46;root.add(pelvis);bones.push(pelvis);
+  const chest=add(pelvis,0,.05,0),CY=-.51,PY=-.46,headG=add(chest,0,.91+CY,0),limbs={};
   [-1,1].forEach(sd=>{
-    const arm=new T.Group();arm.position.set(sd*.14,.755+CY,0);arm.rotation.z=sd*.14;chest.add(arm);
-    M(geo.joint,sleeve,0,0,0,arm);M(geo.sleeve,sleeve,0,0,0,arm);M(geo.armU,skin,0,0,0,arm);
-    if(a.me&&sd===-1)M(geo.band,mat('captain',()=>new T.MeshStandardMaterial({color:0xffc928,roughness:.4})),0,-.055,0,arm,false);
-    const fore=new T.Group();fore.position.y=-.15;arm.add(fore);M(geo.armL,gk?sleeve:skin,0,0,0,fore);if(lod)M(geo.hand,gk?mat('glove',()=>rimify(cloth(0xfafafa))):skin,0,-.155,0,fore);
-    const leg=new T.Group();leg.position.set(sd*.056,-.01,0);pelvis.add(leg);
-    M(geo.shortLeg,shorts,0,-.04,0,leg);
-    M(geo.limbT,skin,0,0,0,leg);
-    const shin=new T.Group();shin.position.y=-.205;leg.add(shin);if(lod)M(geo.knee,skin,0,0,0,shin,false);
-    M(geo.limb,sock,0,0,0,shin);if(lod)M(geo.sockBand,trim,0,-.02,0,shin,false);
-    const ankle=new T.Group();ankle.position.y=-.205;shin.add(ankle);
-    const bt=M(geo.boot,boot,0,-.006,.028,ankle);bt.scale.set(.82,.62,1.5);M(geo.sole,boot,0,-.026,.028,ankle,false);
+    const arm=add(chest,sd*.14,.755+CY,0),fore=add(arm,0,-.15,0),leg=add(pelvis,sd*.056,-.01,0),shin=add(leg,0,-.205,0),ankle=add(shin,0,-.205,0);
     limbs[sd]={arm,fore,leg,shin,ankle};
   });
+  root.updateMatrixWorld(true);
+  const bid=b=>bones.indexOf(b),skeleton=new T.Skeleton(bones);
+  /* Body shares one material, colour lives in the vertices */
+  const hairC=[0x1c1410,0x3b2413,0x0f0f12][a.hair],boots=[0x0c0f16,0xf2f4f8,0xff6a13,0x12d6c5,0xffd21f],bootC=boots[(a.no*3+(us_?0:1))%boots.length];
+  const shortsC=gk?0x13332a:us_?0x141822:0xf4f6fb,sockC=gk?main:us_?0xffffff:0x2a6be2,hs=a.no%4;
+  const key=[a.skin,hairC,bootC,main,shortsC,sockC,hs,lod,gk?1:0,a.me?1:0,us_&&!gk?kit.main:''].join('|');
+  let bodyGeo=playerGeoCache.get(key);
+  if(!bodyGeo){
+    const parts=[],C=h=>new T.Color(h).convertSRGBToLinear();
+    const P=(g,c,bone,x,y,z,o={})=>{const l=new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(o.rx||0,0,o.rz||0)),new T.Vector3(o.sx||1,o.sy||1,o.sz||1));parts.push({g,c:C(c),b:bid(bone),m:new T.Matrix4().multiplyMatrices(bone.matrixWorld,l)})};
+    P(geo.hips,shortsC,pelvis,0,PY,0,{sz:.8});
+    P(geo.collar,main,chest,0,.797+CY,0,{rx:Math.PI/2});P(geo.neck,a.skin,chest,0,.825+CY,0);
+    P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
+    if(hs===3&&lod){for(let i=0;i<14;i++){const an=i*2.399,yy=.03+i*.0046,r=.084-(i%5)*.004;P(geo.curl,hairC,headG,Math.cos(an)*r,yy,Math.sin(an)*r-.012)}}
+    else P(geo.hairCap,hairC,headG,0,.004,-.006,{rx:-.28,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1});
+    if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xffffff,headG,sd*.033,.01,.077);P(geo.pupil,0x14100c,headG,sd*.033,.01,.087);P(geo.brow,hairC,headG,sd*.034,.032,.081,{rz:sd*-.15})});P(geo.nose,a.skin,headG,0,-.012,.087)}
+    [-1,1].forEach(sd=>{const l=limbs[sd];
+      P(geo.joint,main,l.arm,0,0,0);P(geo.sleeve,main,l.arm,0,0,0);P(geo.armU,a.skin,l.arm,0,0,0);
+      if(a.me&&sd===-1)P(geo.band,0xffc928,l.arm,0,-.055,0);
+      P(geo.armL,gk?main:a.skin,l.fore,0,0,0);if(lod)P(geo.hand,gk?0xfafafa:a.skin,l.fore,0,-.155,0);
+      P(geo.shortLeg,shortsC,l.leg,0,-.04,0);P(geo.limbT,a.skin,l.leg,0,0,0);
+      if(lod)P(geo.knee,a.skin,l.shin,0,0,0);P(geo.limb,sockC,l.shin,0,0,0);if(lod)P(geo.sockBand,us_&&!gk?kit.main:main,l.shin,0,-.014,0);
+      P(geo.boot,bootC,l.ankle,0,-.006,.028,{sx:.82,sy:.62,sz:1.5});P(geo.sole,bootC,l.ankle,0,-.026,.028);
+    });
+    bodyGeo=mergeParts(parts,bones);playerGeoCache.set(key,bodyGeo);
+  }
+  const bodyMat=mat('skinnedBody',()=>rimify(new T.MeshStandardMaterial({vertexColors:true,skinning:true,roughness:.6,envMapIntensity:.35})));
+  const body=new T.SkinnedMesh(bodyGeo,bodyMat);
+  /* The shirt keeps its own texture */
+  const shirtMat=mat(`sk${main}${stripe}${a.no}${name.toUpperCase()}`,()=>rimify(new T.MeshStandardMaterial({map:shirtTex(main,hi,stripe,a.no,name.toUpperCase()),skinning:true,roughness:.66,envMapIntensity:.45})));
+  if(!GL.torsoGeo){
+    const g=geo.torso.clone(),n=g.attributes.position.count;g.scale(1,1,.74);g.translate(0,.46+.05+CY,0);
+    const si=new Uint16Array(n*4),sw=new Float32Array(n*4);for(let i=0;i<n;i++){si[i*4]=1;sw[i*4]=1}
+    g.setAttribute('skinIndex',new T.BufferAttribute(si,4));g.setAttribute('skinWeight',new T.BufferAttribute(sw,4));GL.torsoGeo=g;
+  }
+  const shirt=new T.SkinnedMesh(GL.torsoGeo,shirtMat);
+  [body,shirt].forEach(o=>{o.castShadow=true;o.frustumCulled=false;root.add(o);o.bind(skeleton,new T.Matrix4())});
   const sc=PLAYER_H*FORMATS[setup.fmt].size*(a.me?1.12:1);root.scale.set(sc,sc,sc);
   GL.scene.add(root);
   a.model={root,pelvis,chest,limbs,headG,yaw:a.team==='us'?Math.PI:0,j:{hipX:[-.2,-.2],hipZ:[0,0],knee:[.3,.3],ankle:[.1,.1],armX:[0,0],armZ:[-.17,.17],elbow:[-.3,-.3],pelYaw:0,chestYaw:0,leanX:.06,leanZ:0,headX:0,rootY:0,rootYaw:0}};
@@ -1336,23 +1356,24 @@ function updateBallPos(){
   else if(ball.fall>0){ball.fall=Math.max(0,ball.fall-.04);ball.z=Math.abs(Math.sin(ball.fall*7))*ball.fall*3}
 }
 function GL_render(ts){
-  const cam=GL.cam,T=GL.T,dt=Math.min(.05,(ts-(GL.lastT||ts))/1000);GL.lastT=ts;
+  const cam=GL.cam,T=GL.T,rawDt=Math.max(.001,(ts-(GL.lastT||ts-16))/1000),dt=Math.min(.05,rawDt);GL.lastT=ts;GL.realDt=rawDt;
   /* Quality adapts to the device */
-  GL.frames++;if(dt>.034)GL.slowFrames++;
-  if(GL.frames>=90&&!window.__noAdapt){
-    if(GL.slowFrames>40){GL.stage++;
-      if(GL.stage===1&&GL.blades)GL.blades.visible=false;
+  GL.frames++;GL.frameSum=(GL.frameSum||0)+rawDt;
+  if(GL.frames>=60){
+    const avg=GL.frameSum/GL.frames;GL.frames=0;GL.frameSum=0;GL.fps=1/avg;
+    if(avg>.0215&&!window.__noAdapt){GL.stage++;
+      if(GL.stage===1&&GL.pixel>1.5){GL.pixel=1.5;GL.r.setPixelRatio(GL.pixel);GL_resize()}
       else if(GL.stage===2&&GL.bloom)GL.bloom.enabled=false;
-      else if(GL.stage===3&&GL.pixel>1){GL.pixel=Math.max(1,GL.pixel-.5);GL.r.setPixelRatio(GL.pixel);GL_resize()}
-      else if(GL.stage===4){GL.key.castShadow=false;if(GL.shadowMesh)GL.shadowMesh.count=0}
+      else if(GL.stage===3&&GL.blades)GL.blades.visible=false;
+      else if(GL.stage===4&&GL.pixel>1.15){GL.pixel=1.15;GL.r.setPixelRatio(GL.pixel);GL_resize()}
+      else if(GL.stage===5&&avg>.03){GL.key.castShadow=false;GL.shadowMesh.count=0}
     }
-    GL.frames=0;GL.slowFrames=0;
   }
   GL.uTime.value=ts/1000;GL.jump=Math.max(0,GL.jump-dt*.4);GL.uJump.value=.12+GL.jump;
   GL.ledTex.offset.x=(ts/26000)%1;GL.flags.forEach((f,i)=>{f.rotation.y=Math.sin(ts/300+i)*.4});
   const inMatch=GL.mode==='match',all=GL.models;
   /* Four-way floodlight shadows */
-  if(GL.shadowMesh&&GL.stage<4){const S0=new T.Object3D();let n=0;const dirs=[[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8]];
+  if(GL.shadowMesh&&GL.stage<5){const S0=GL.shadowO||(GL.shadowO=new T.Object3D());let n=0;const dirs=[[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8]];
     all.forEach(a=>{const h=PLAYER_H*FORMATS[setup.fmt].size;dirs.forEach(d=>{S0.position.set(a.x-50+d[0]*h*.3,0,a.y-70+d[1]*h*.3);S0.rotation.set(0,Math.atan2(d[0],d[1]),0);S0.scale.set(h*.26,1,h*.72);S0.updateMatrix();GL.shadowMesh.setMatrixAt(n++,S0.matrix)});S0.position.set(a.x-50,0,a.y-70);S0.rotation.set(0,0,0);S0.scale.set(h*.42,1,h*.42);S0.updateMatrix();GL.shadowMesh.setMatrixAt(n++,S0.matrix)});
     GL.shadowMesh.count=n;GL.shadowMesh.instanceMatrix.needsUpdate=true}
   updateBallPos();
@@ -1450,7 +1471,10 @@ const wait=ms=>new Promise(res=>tweens.push({o:{},from:{},to:{},t0:clock,dur:ms,
 let scripts=[];
 const runScript=(dur,fn)=>new Promise(res=>scripts.push({t0:clock,dur:reduced?dur*.6:dur,fn,res}));
 function stepScripts(){const done=[];scripts=scripts.filter(x=>{const q=clamp((clock-x.t0)/x.dur,0,1);x.fn(q);if(q>=1){done.push(x.res);return false}return true});done.forEach(f=>f())}
-function stepTweens(){const done=[];tweens=tweens.filter(x=>{const p=clamp((clock-x.t0)/x.dur,0,1),e=x.ease==='l'?p:x.ease==='out'?1-(1-p)*(1-p):p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;for(const k in x.to)x.o[k]=x.from[k]+(x.to[k]-x.from[k])*e;if(p>=1){done.push(x.res);return false}return true});done.forEach(f=>f())}
+const RUN_SPEED=38;
+const runDur=(a,x,y,min=420,max=1500)=>clamp(Math.hypot(a.x-x,a.y-y)/RUN_SPEED*1000+160,min,max);
+const runTo=(a,x,y,min,max)=>tween(a,{x,y},runDur(a,x,y,min,max),'run');
+function stepTweens(){const done=[];tweens=tweens.filter(x=>{const p=clamp((clock-x.t0)/x.dur,0,1),e=x.ease==='l'?p:x.ease==='run'?(p<.2?3.125*p*p:p>.8?1-3.125*(1-p)*(1-p):1.25*p-.125):x.ease==='out'?1-(1-p)*(1-p):p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;for(const k in x.to)x.o[k]=x.from[k]+(x.to[k]-x.from[k])*e;if(p>=1){done.push(x.res);return false}return true});done.forEach(f=>f())}
 
 /* ========== Scene state ========== */
 const hopTeam=()=>{us.forEach(a=>{if(!a.gk)a.hopUntil=clock+1100})};
@@ -1829,12 +1853,14 @@ async function playAction(sit,my){
   const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(G.i/(ACTIONS-1)))*(tempo==='slow'?1.7:1)*1000;
   setBar(1);
   const c=compose(sit,slotOf());
-  const moves=[];
-  c.pos.us.forEach((o,i)=>moves.push(tween(us[i],{x:o.x,y:o.y},700)));
-  c.pos.them.forEach((o,i)=>moves.push(tween(them[i],{x:o.x,y:o.y},700)));
+  c.pos.us.forEach((o,i)=>{runTo(us[i],o.x,o.y)});
+  c.pos.them.forEach((o,i)=>{runTo(them[i],o.x,o.y)});
   const carrier=c.isOpen?us[c.carrier]:them[c.carrier];
-  moves.push(tween(ball,{x:c.ball[0],y:c.ball[1]},700));
-  await Promise.all(moves);if(my!==token)return;
+  /* The carrier and the ball meet, rolling along the grass */
+  runTo(carrier,c.pos[c.isOpen?'us':'them'][c.carrier].x,c.pos[c.isOpen?'us':'them'][c.carrier].y,420,920);
+  ball.owner=null;ball.from={x:ball.x,y:ball.y};ball.to={x:c.ball[0],y:c.ball[1]};ball.h=Math.min(2.2,Math.hypot(ball.x-c.ball[0],ball.y-c.ball[1])*.04);
+  await tween(ball,{x:c.ball[0],y:c.ball[1]},950,'out');ball.from=ball.to=null;ball.z=0;if(my!==token)return;
+  await wait(GL.on?60:0);if(my!==token)return;
   ball.owner=carrier;
   const who=c.isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.');
   if(G.lv===0)setDock(who,true);
@@ -1843,6 +1869,7 @@ async function playAction(sit,my){
   sfx.kick();
   const dir=carrier.gk?0:(c.isOpen?-5:5);
   if(dir)tween(carrier,{y:carrier.y+dir},total,'l');
+  if(GL.on){const c0=c;setTimeout(()=>{if(my!==token||!deciding)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;const towardX=(c0.ball[0]-a.x)*.05,towardY=(c0.ball[1]-a.y)*.05;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+towardX+Math.sin(i*2.3)*1.4,5,95),y:clamp(a.y+towardY+Math.cos(i*1.7)*1.4,8,132)},total,'l')})},650)}
   const t0=clock;
   const answer=await new Promise(res=>{deciding={t0,total,res,c}});
   deciding=null;if(my!==token)return;
@@ -1862,11 +1889,11 @@ function judge(c,a){
 }
 async function resolveAction(c,a,ms,total,carrier,my){
   const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;
-  if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},Math.min(620,dist(me,j.spot)*9+140));if(!alive())return;view.marker=null}
+  if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},runDur(me,j.spot.x,j.spot.y,300,1250),'run');if(!alive())return;view.marker=null}
   us.forEach((m,i)=>{
     if(m===carrier||m===me||m.gk||i===c.presser)return;
-    if(isOpen)tween(m,{x:clamp(50+(m.x-50)*1.18,5,95),y:clamp(m.y-5,10,128)},560);
-    else{const cx=50+(ball.x-50)*.3;tween(m,{x:cx+(m.x-cx)*.82,y:clamp(m.y+4,10,128)},560)}
+    if(isOpen)runTo(m,clamp(50+(m.x-50)*1.18,5,95),clamp(m.y-5,10,128),600,1100);
+    else{const cx=50+(ball.x-50)*.3;runTo(m,cx+(m.x-cx)*.82,clamp(m.y+4,10,128),600,1100)}
   });
   view.hull=true;view.hullColor=isOpen?'#ffc928':'#7fe7ea';
   const fast=ms<total*.5;let title,kind;G.lastFast=fast;
@@ -1905,11 +1932,11 @@ async function sceneGoal(carrier,my){
   if(me.y>64){
     /* From deep, you make the pass and your striker finishes. */
     scored=false;shooter=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0];
-    tween(shooter,{x:clamp(shooter.x,28,72),y:30},700);
+    runTo(shooter,clamp(shooter.x,28,72),30,500,950);
     await wait(180);if(my!==token)return false;
-    await kick(clamp(shooter.x,28,72),30,520,3.5);if(my!==token)return false;ball.owner=shooter;setAct(shooter,'trap',300);await wait(GL.on?130:0);if(my!==token)return false;
+    await kick(clamp(shooter.x,28,72),30,Math.max(520,dist(ball,{x:shooter.x,y:30})*6+160),3.5);if(my!==token)return false;ball.owner=shooter;setAct(shooter,'trap',300);await wait(GL.on?130:0);if(my!==token)return false;
   }else{
-    await tween(me,{x:clamp(me.x+(50-me.x)*.55,10,90),y:Math.min(me.y,30)},560);if(my!==token)return false;
+    {const tx=clamp(me.x+(50-me.x)*.55,10,90),ty=Math.min(me.y,30);await tween(me,{x:tx,y:ty},runDur(me,tx,ty,300,1200),'run')}if(my!==token)return false;
   }
   const shot={x:FORMATS[setup.fmt].line[0]+3+Math.random()*14,y:3};
   const gkDir=shot.x>50?-1:1;
@@ -1975,7 +2002,7 @@ async function sceneSkill(my,fast){
 }
 async function sceneWin(my){setAct(me,'tackle',380);await kick(me.x,me.y,dist(ball,me)*6+200,0.5);if(my!==token)return;ball.owner=me;setAct(me,'trap',340);turfBurst(me.x,me.y,8);sfx.good();if(G.lastFast&&slotOf().role!=='GK'){await sceneSkill(my,true);if(my!==token)return}await wait(450)}
 async function sceneKeeper(carrier,my){
-  await tween(carrier,{y:clamp(carrier.y+14,10,112)},420);if(my!==token)return;
+  await tween(carrier,{y:clamp(carrier.y+14,10,112)},520,'run');if(my!==token)return;
   await kick(gkUs.x,gkUs.y,380,2.5);if(my!==token)return;ball.owner=gkUs;setAct(gkUs,'trap',380);await wait(300);
 }
 async function sceneLost(carrier,my){
@@ -1991,7 +2018,7 @@ async function sceneAgainst(carrier,my){
     const tx=fw.x,ty=Math.max(fw.y,92);tween(fw,{x:tx,y:ty},520);
     await kick(tx,ty,520,3);if(my!==token)return;ball.owner=fw;carrier=fw;
   }
-  await tween(carrier,{x:50+(carrier.x-50)*.55,y:112},520);if(my!==token)return;
+  {const tx=50+(carrier.x-50)*.55;await tween(carrier,{x:tx,y:112},runDur(carrier,tx,112,350,1300),'run');if(my!==token)return}
   (async()=>{await wait(150);if(my!==token)return;tween(gkUs,{x:40},380,'out');setAct(gkUs,'dive',1500,{dir:1})})();
   await kick(FORMATS[setup.fmt].line[1]-3,137.5,350,2.5,{power:true});if(my!==token)return;
   ball.fall=1;G.them++;updateScore();sfx.bad();shake=reduced?0:4;if(GL.flashAmt!==undefined&&GL.on)GL.netHitNear=clock+500;
