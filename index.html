@@ -1195,7 +1195,7 @@ function animatePlayer(a,dt,ts,inMatch){
   if(a===GL.hero&&!inMatch&&GL.showHero&&!a.act){
     /* Keep-ups: each foot in turn rises to meet the ball, slightly ahead so the joints arrive on time */
     const P=JUGGLE_MS,t0=ts+JUGGLE_LEAD,i=Math.round(t0/P)%2,o=1-i,dq=t0/P-Math.round(t0/P),kick=Math.pow(Math.max(0,Math.cos(dq*Math.PI*1.25)),5);
-    T.hipX[i]=-.2-kick*.78;T.knee[i]=.48-kick*.34;T.ankle[i]=.16-kick*.42;T.hipX[o]=-.2;T.knee[o]=.42;T.ankle[o]=.2;
+    T.hipX[i]=-.2-kick*.98;T.knee[i]=.48-kick*.4;T.ankle[i]=.16-kick*.42;T.hipX[o]=-.2;T.knee[o]=.42;T.ankle[o]=.2;
     T.armZ=[-.34,.34];T.armX=[.1+kick*(i?.35:-.25),.1+kick*(i?-.25:.35)];T.elbow=[-.55,-.55];T.leanX=.14-kick*.1;T.leanZ=(i?-1:1)*.05*kick;T.headX=.34;T.chestYaw=(i?-1:1)*.09*kick;T.rate=26;
   }
   applyAction(a,T,ts);
@@ -1427,15 +1427,16 @@ function GL_health(){
 }
 /* A child's ball is about 15% of his height across; slightly larger here so it stays easy to follow */
 const ballRadius=()=>PLAYER_H*FORMATS[setup.fmt].size*.083;
-const JUGGLE_MS=860,JUGGLE_LEAD=55,JUGGLE_H=8.5;
+const JUGGLE_MS=860,JUGGLE_LEAD=55,JUGGLE_H=11.5;
 function heroJuggle(ts,dt,inMatch){
   const h=GL.hero;if(!h||inMatch||ball.owner||!GL.showHero||!h.model)return;
   const T=GL.T,P=JUGGLE_MS,i=Math.round(ts/P)%2,side=i?1:-1;
   h.model.root.updateWorldMatrix(true,true);
   const foot=(GL.footV||(GL.footV=new T.Vector3()));h.model.limbs[side].ankle.getWorldPosition(foot);
-  if(h.act){ball.x+=((h.x+1.6)-ball.x)*Math.min(1,dt*6);ball.y+=((h.y-3)-ball.y)*Math.min(1,dt*6);ball.z=0;return}
+  if(h.act){ball.x+=((h.x+1.6)-ball.x)*Math.min(1,dt*6);ball.y+=((h.y-5.5)-ball.y)*Math.min(1,dt*6);ball.z=0;return}
   /* The ball is always travelling to the foot that plays it next */
-  const fx=foot.x+50,fy=foot.z+70+Math.cos(h.model.yaw)*.9,k=1-Math.exp(-dt*12);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
+  /* The ball stays in front of the body, in line with the foot that plays it */
+  const H=PLAYER_H*FORMATS[setup.fmt].size,yaw=h.model.yaw,fwd=H*.3,lat=-side*H*.05,fx=h.x+Math.sin(yaw)*fwd+Math.cos(yaw)*lat,fy=h.y+Math.cos(yaw)*fwd-Math.sin(yaw)*lat,k=1-Math.exp(-dt*9);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
   const tq=((ts%P)+P)%P/P,par=4*tq*(1-tq),bs=ballRadius(),contact=Math.max(0,foot.y+.4);
   ball.z=contact*(1-par)+par*JUGGLE_H;
   GL.juggleGap=Math.abs((bs+ball.z-bs)-(foot.y+.55));
