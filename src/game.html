@@ -1418,7 +1418,7 @@ function heroJuggle(ts,dt,inMatch){
   if(h.act){ball.x+=((h.x+1.6)-ball.x)*Math.min(1,dt*6);ball.y+=((h.y-5.5)-ball.y)*Math.min(1,dt*6);ball.z=0;return}
   /* The ball is always travelling to the foot that plays it next */
   /* The ball stays in front of the body, in line with the foot that plays it */
-  const H=PLAYER_H*FORMATS[setup.fmt].size,yaw=h.model.yaw,fwd=H*.3,lat=-side*H*.05,fx=h.x+Math.sin(yaw)*fwd+Math.cos(yaw)*lat,fy=h.y+Math.cos(yaw)*fwd-Math.sin(yaw)*lat,k=1-Math.exp(-dt*9);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
+  const H=PLAYER_H*FORMATS[setup.fmt].size,yaw=h.model.yaw,fwd=H*.34,lat=-side*H*.04,fx=h.x+Math.sin(yaw)*fwd+Math.cos(yaw)*lat,fy=h.y+Math.cos(yaw)*fwd-Math.sin(yaw)*lat,k=1-Math.exp(-dt*9);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
   const tq=((ts%P)+P)%P/P,par=4*tq*(1-tq),bs=ballRadius(),contact=Math.max(0,foot.y+.4);
   ball.z=contact*(1-par)+par*JUGGLE_H;
   GL.juggleGap=Math.abs((bs+ball.z-bs)-(foot.y+.55));
@@ -1467,7 +1467,7 @@ function GL_render(ts){
     if(GL.zoom>0){const g=Math.min(1,GL.zoom);wantPos.lerp(new T.Vector3(ball.x-50,wantPos.y*.82,wantPos.z*.82),g*.5)}
     if(shake>0){wantPos.x+=(Math.random()-.5)*shake*.2;wantPos.y+=(Math.random()-.5)*shake*.2;shake*=.9;if(shake<.3)shake=0}
   }else if(GL.showHero&&GL.hero){
-    const hx=GL.hero.x-50,hz=GL.hero.y-70,a=o*.26,R=GL.winW<GL.winH?74:44;
+    const hx=GL.hero.x-50,hz=GL.hero.y-70,a=2.0+Math.sin(o*.3)*.32,R=GL.winW<GL.winH?74:44;
     wantPos=new T.Vector3(hx+Math.sin(a)*R,12,hz+Math.cos(a)*R);wantLook=new T.Vector3(hx,GL.winW<GL.winH?3.5:9,hz);
   }else{
     const a=o*.06,R=GL.winW<GL.winH?122:104;
