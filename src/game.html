@@ -864,15 +864,18 @@ function drawGoal(g,y,fmt,far){
 
 /* ========== 3D stadium ========== */
 const PLAYER_H=17;
+const GFX_KEY='fts-gfx-2';
+function gfxLevel(){try{return Number(localStorage.getItem(GFX_KEY))||0}catch(e){return 0}}
 const GL={on:false,flashAmt:0,netHit:0,trophySpin:0,mode:'menu',pixel:1,slowFrames:0,frames:0,lastT:0,jump:0,zoom:0};
 function initGL(){
   try{
     if(!window.THREE)return;
+    const level=gfxLevel();GL.level=level;if(level>=2)return;
     const T=THREE,canvas=$('gl');
     const r=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
     GL.pixel=Math.min(window.devicePixelRatio||1,1.75);
     r.setPixelRatio(GL.pixel);
-    const post=r.capabilities.isWebGL2&&T.EffectComposer&&T.UnrealBloomPass;
+    const post=level<1&&r.capabilities.isWebGL2&&T.EffectComposer&&T.UnrealBloomPass;
     GL.post=!!post;
     if(post){r.outputEncoding=T.LinearEncoding;r.toneMapping=T.NoToneMapping}else{r.outputEncoding=T.sRGBEncoding;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=.92}
     r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;
@@ -882,7 +885,6 @@ function initGL(){
     GL.detail=GL.pixel>=1.5?2:1;GL.stage=0;
     buildWorld();buildBallModel();buildGeo();buildExtras();buildFx();
     if(post)buildPost();
-    try{const pm=new T.PMREMGenerator(r);GL.env=pm.fromScene(scene,.03).texture;scene.environment=GL.env;pm.dispose()}catch(e){}
     GL.on=true;document.documentElement.classList.add('gl3d');
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();setTimeout(()=>location.reload(),400)});
     window.addEventListener('resize',GL_resize);GL_resize();
@@ -955,9 +957,8 @@ function buildExtras(){
 }
 function buildTrophy(){
   const T=GL.T,V=(x,y)=>new T.Vector2(x,y);
-  GL.cupMat=new T.MeshStandardMaterial({color:0xffc928,metalness:1,roughness:.22,envMapIntensity:1.5});
-  /* The cup reflects a studio, not the green pitch */
-  try{const studio=new T.Scene(),tx=canvasTex(64,256,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);[[0,'#fff'],[.22,'#ffe9b0'],[.4,'#40301a'],[.52,'#fff4d0'],[.66,'#2a2030'],[1,'#8a6a40']].forEach(([a,c])=>l.addColorStop(a,c));g.fillStyle=l;g.fillRect(0,0,w,h)});studio.add(new T.Mesh(new T.SphereGeometry(50,24,16),new T.MeshBasicMaterial({map:tx,side:T.BackSide})));const pm=new T.PMREMGenerator(GL.r);GL.cupMat.envMap=pm.fromScene(studio,.02).texture;pm.dispose()}catch(e){}
+  const cap=canvasTex(256,256,(g,w)=>{g.fillStyle='#3a2a12';g.fillRect(0,0,w,w);const rg=g.createRadialGradient(w*.5,w*.5,w*.08,w*.5,w*.5,w*.5);[[0,'#fff6dc'],[.28,'#e8c98a'],[.5,'#5a4222'],[.68,'#fff0c4'],[.8,'#7a5a2c'],[1,'#191008']].forEach(([a,c])=>rg.addColorStop(a,c));g.fillStyle=rg;g.fillRect(0,0,w,w);const hl=g.createRadialGradient(w*.36,w*.3,0,w*.36,w*.3,w*.2);hl.addColorStop(0,'rgba(255,255,255,.95)');hl.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=hl;g.fillRect(0,0,w,w)});
+  GL.cupMat=new T.MeshMatcapMaterial({matcap:cap,color:0xffc928,fog:false});
   const base=new T.MeshStandardMaterial({color:0x151515,metalness:.5,roughness:.35});
   const g=new T.Group();
   const bowl=new T.Mesh(new T.LatheGeometry([V(0,1.05),V(.32,1.07),V(.56,1.3),V(.68,1.65),V(.72,2.1),V(.76,2.35),V(.7,2.35),V(.64,2.1),V(.6,1.7),V(.3,1.3),V(0,1.2)],48),GL.cupMat);
@@ -968,7 +969,6 @@ function buildTrophy(){
   g.add(bowl,stem,plinth,ring);g.position.y=-1.15;
   const root=new T.Group();root.add(g);root.visible=false;root.traverse(o=>{o.frustumCulled=false});
   GL.trophy=root;GL.cam.add(root);GL.scene.add(GL.cam);
-  const l=new T.PointLight(0xfff0c8,1.6,40);l.position.set(1.5,2,2);root.add(l);
   root.position.set(0,.55,-9);
   GL.backdrop=new T.Mesh(new T.PlaneGeometry(90,160),new T.MeshBasicMaterial({color:0x101c3a,fog:false}));GL.backdrop.position.z=-11.5;GL.backdrop.visible=false;GL.cam.add(GL.backdrop);
 }
@@ -993,7 +993,7 @@ function canvasTex(w,h,paint){const c=document.createElement('canvas');c.width=w
 function buildWorld(){
   const T=GL.T,scene=GL.scene;
   /* Lights: four floodlight banks, one casts the crisp match shadow */
-  scene.add(new T.HemisphereLight(0xb9ccff,0x12301e,.3));
+  scene.add(new T.HemisphereLight(0xb9ccff,0x1c4a2c,.66));
   const key=new T.DirectionalLight(0xfff1dc,.86);key.position.set(-60,150,70);key.castShadow=true;
   key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-95,right:95,top:110,bottom:-110,near:20,far:330});key.shadow.bias=-.0006;key.shadow.radius=3;scene.add(key);GL.key=key;
   [[70,120,60,.3],[-70,120,-70,.22],[70,120,-70,.22]].forEach(([x,y,z,i])=>{const d=new T.DirectionalLight(0xdfe9ff,i);d.position.set(x,y,z);scene.add(d)});
@@ -1392,18 +1392,27 @@ function updateBallPos(){
   else if(ball.from&&ball.to){const L=Math.hypot(ball.to.x-ball.from.x,ball.to.y-ball.from.y)||1,f=clamp(Math.hypot(ball.x-ball.from.x,ball.y-ball.from.y)/L,0,1);ball.z=ball.h*4*f*(1-f)}
   else if(ball.fall>0){ball.fall=Math.max(0,ball.fall-.04);ball.z=Math.abs(Math.sin(ball.fall*7))*ball.fall*3}
 }
+/* If the pitch renders black on this device, step down and restart cleanly */
+function GL_health(){
+  if(!GL.checkAt||clock<GL.checkAt||GL.mode!=='match'||!GL.rect)return;
+  const gl=GL.r.getContext(),px=new Uint8Array(4);let best=0;
+  [[20,30],[80,110],[50,100],[15,100],[85,35]].forEach(([x,y])=>{const o=GL.proj(x,y),rx=Math.round((o.x+GL.rect.left)*GL.pixel),ry=Math.round((GL.winH-(o.y+GL.rect.top))*GL.pixel);gl.readPixels(rx,ry,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);best=Math.max(best,px[1])});
+  GL.lastHealth=best;
+  if(best<70){GL.badChecks=(GL.badChecks||0)+1;GL.checkAt=clock+600;
+    if(GL.badChecks>=3){try{localStorage.setItem(GFX_KEY,String(gfxLevel()+1))}catch(e){}GL.checkAt=0;if(!window.__noReload)location.reload();else GL.healed=true}
+  }else{GL.badChecks=0;GL.checkAt=0}
+}
 function GL_render(ts){
   const cam=GL.cam,T=GL.T,rawDt=Math.max(.001,(ts-(GL.lastT||ts-16))/1000),dt=Math.min(.05,rawDt);GL.lastT=ts;GL.realDt=rawDt;
   /* Quality adapts to the device */
   GL.frames++;GL.frameSum=(GL.frameSum||0)+rawDt;
   if(GL.frames>=60){
     const avg=GL.frameSum/GL.frames;GL.frames=0;GL.frameSum=0;GL.fps=1/avg;
-    if(avg>.0215&&!window.__noAdapt){GL.stage++;
+    if(avg>.0215&&!window.__noAdapt&&GL.stage<4){GL.stage++;GL.checkAt=clock+1200;
       if(GL.stage===1&&GL.pixel>1.5){GL.pixel=1.5;GL.r.setPixelRatio(GL.pixel);GL_resize()}
       else if(GL.stage===2&&GL.bloom)GL.bloom.enabled=false;
       else if(GL.stage===3&&GL.blades)GL.blades.visible=false;
       else if(GL.stage===4&&GL.pixel>1.15){GL.pixel=1.15;GL.r.setPixelRatio(GL.pixel);GL_resize()}
-      else if(GL.stage===5&&avg>.03){GL.key.castShadow=false;GL.shadowMesh.count=0}
     }
   }
   GL.uTime.value=ts/1000;GL.jump=Math.max(0,GL.jump-dt*.4);GL.uJump.value=.12+GL.jump;
@@ -1452,6 +1461,7 @@ function GL_render(ts){
   if(GL.nearNet){const q=GL.netHitNear>clock?(GL.netHitNear-clock)/500:0;GL.nearNet.scale.z=1+q*.55;GL.nearNet.scale.x=1+q*.06}
   if(GL.trophy.visible){GL.trophySpin+=dt*.9;const tg=GL.trophy.children[0];tg.rotation.y=GL.trophySpin;const k=Math.min(1,GL.trophy.scale.x+dt*3);GL.trophy.scale.setScalar(k);}
   if(GL.comp){GL.grade.uniforms.uFlash.value=GL.flashAmt*.22;GL.comp.render()}else GL.r.render(GL.scene,cam);
+  GL_health();
 }
 function drawGLOverlay(){
   /* Only what must stay readable above the 3D: hints, name, ball pin */
@@ -1875,7 +1885,7 @@ async function startMatch(lv){
   if(!store.get('fts-intro-'+setup.name.toLowerCase(),false))await runIntro();
   const my=++token;tweens.forEach(x=>x.res());tweens=[];
   try{speechSynthesis.cancel()}catch(e){}
-  GL.mode='match';buildTeams();clearScene();bg=null;GL.showHero=false;if(GL.on){GL_setMode('match');GL_updateScreen();GL.camPos.set(70,70,150);GL.camLook.set(0,4,0)}
+  GL.mode='match';buildTeams();clearScene();bg=null;GL.showHero=false;if(GL.on){GL_setMode('match');GL.checkAt=clock+2400;GL.badChecks=0;GL_updateScreen();GL.camPos.set(70,70,150);GL.camLook.set(0,4,0)}
   G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,log:[],list:pickSituations()};$('streak').hidden=true;
   $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
   audio();startAmbience();updateScore();setBar(1);setDock('');show('play');
