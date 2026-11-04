@@ -294,6 +294,26 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .note{color:var(--gold);font-weight:700}
 .day-chip{display:inline-block;background:#ff8a1f;color:#10131b;border-radius:7px;padding:0 7px;font-weight:700;margin-left:6px;font-size:14px;white-space:nowrap}
 .award.pause{background:#050b18d9;gap:14px}.award.pause::before{display:none}.pause .cta,.pause .btn{max-width:320px;width:100%}.pause .btn{padding:12px}
+.dock{position:relative}
+.coach{position:absolute;left:0;right:0;bottom:0;z-index:3;background:#0a1529f2;border:1px solid var(--gold);border-radius:14px;padding:9px 12px 11px;display:flex;flex-direction:column;gap:5px;box-shadow:0 -6px 28px #000b;animation:rise .25s ease-out both}
+.coach-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.coach-dots{display:flex;gap:5px}.coach-dots i{width:22px;height:6px;border-radius:3px;background:#ffffff2e}.coach-dots i.on{background:var(--gold)}
+.coach-skip{background:none;color:var(--muted);text-decoration:underline;font-size:15px;min-height:34px;padding:2px 4px}
+.coach h2{font-family:var(--display);font-weight:400;text-transform:uppercase;font-size:clamp(24px,7vw,32px);line-height:1.02;color:var(--gold)}
+.coach p{font-size:18px;line-height:1.28}
+.coach .cta{font-size:25px;padding:8px;margin-top:3px}
+.lessons{background:#0d1a33d9;border:1px solid var(--line);border-radius:12px;padding:9px 12px;text-align:left;font-size:16px}
+.lessons b{display:block;color:var(--gold);font-family:var(--display);font-weight:400;font-size:22px;text-transform:uppercase}
+.lessons ul{margin:3px 0 0;padding-left:18px}.lessons li{margin:3px 0}
+.award.pin{gap:10px;background:#050b18f7}.award.pin::before{display:none}
+.pin h2{font-size:clamp(36px,11vw,52px)}
+.pin-dots{display:flex;gap:12px;margin:4px 0}.pin-dots i{width:17px;height:17px;border-radius:50%;border:2px solid var(--chalk)}.pin-dots i.on{background:var(--gold);border-color:var(--gold)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,68px);gap:9px}
+.pin-pad button{height:58px;border-radius:12px;background:#22365c;font-size:26px;font-weight:700}.pin-pad button:active{background:#33507f}
+.pin .btn{width:100%;max-width:240px;padding:9px}
+.pin-bad{animation:pinshake .35s}
+@keyframes pinshake{25%{transform:translateX(-9px)}50%{transform:translateX(8px)}75%{transform:translateX(-5px)}}
+.danger{background:#5a1a22!important;color:#ffd8d3}
 </style>
 
 <canvas id="gl" aria-hidden="true"></canvas>
@@ -377,10 +397,16 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
       <button class="choice o" id="btnOpen" data-fr="OUVRIR">OPEN</button>
       <button class="choice d" id="btnDicht" data-fr="FERMER">DICHT</button>
     </div>
+    <div class="coach" id="coach" hidden>
+      <div class="coach-top"><span class="coach-dots" id="coachDots"></span><button class="coach-skip" id="coachSkip" data-fr="Passer">Overslaan</button></div>
+      <h2 id="coachTitle"></h2>
+      <p id="coachText"></p>
+      <button class="cta" id="coachNext"></button>
+    </div>
     <div class="feedback" id="fb" hidden>
       <h2 id="fbTitle"></h2>
       <p id="fbTip"></p>
-      <button class="show-me" id="fbShow" data-fr="Montre-moi" hidden>Toon mij</button>
+      <button class="show-me" id="fbShow" data-fr="Pourquoi ?" hidden>Waarom?</button>
       <button class="go" id="fbGo" data-fr="Suite">Verder</button>
     </div>
   </div>
@@ -396,6 +422,7 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
     <div class="d"><b id="rDicht"></b><span data-fr="fois bien fermé">keer goed dicht</span></div>
   </div>
   <p id="rTip"></p>
+  <div class="lessons" id="rLessons" hidden></div>
   <p class="note" id="rNudge" hidden></p>
   <div id="rSkills" hidden></div>
   <div id="rNew"></div>
@@ -414,7 +441,6 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
   </div>
   <div class="shelf" id="shelf"></div>
   <button class="cab-btn" id="openStats" data-fr="Pour les parents et le coach">Voor ouders en coach</button>
-  <button class="reset" id="cabReset"></button>
 </section>
 
 <section id="stats" class="screen" hidden>
@@ -424,6 +450,14 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
   </div>
   <div class="shelf" id="statsBody"></div>
 </section>
+
+<div class="award pin" id="pin" role="dialog" aria-modal="true" hidden>
+  <h2 data-fr="Pour les parents">Voor ouders</h2>
+  <p id="pinMsg" role="status" data-fr="Entrez le code">Geef de code in</p>
+  <div class="pin-dots" id="pinDots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="pin-pad" id="pinPad"></div>
+  <button class="btn" id="pinClose" data-fr="Retour">Terug</button>
+</div>
 
 <div class="award pause" id="pause" role="dialog" aria-modal="true" hidden>
   <h2 data-fr="Pause">Pauze</h2>
@@ -721,6 +755,21 @@ const cupWon=(cup,p)=>cup.ch.every(c=>c.cur(p)>=c.goal);
 function cupSVG(col,won=true){
   const a=won?col[0]:'#47597a',b=won?col[1]:'#2c3b58',id='g'+Math.random().toString(36).slice(2,8);
   return `<svg viewBox="0 0 100 110" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="${a}"/><stop offset=".55" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><path d="M24 16H8c0 24 8 36 24 39M76 16h16c0 24-8 36-24 39" fill="none" stroke="${b}" stroke-width="7"/><path d="M22 6h56c0 44-8 62-28 62S22 50 22 6z" fill="url(#${id})"/><rect x="43" y="66" width="14" height="20" fill="${b}"/><rect x="29" y="84" width="42" height="9" rx="2" fill="url(#${id})"/><rect x="22" y="93" width="56" height="12" rx="3" fill="${b}"/>${won?'<path d="M33 15c1 17 4 29 10 38" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="5" stroke-linecap="round"/>':'<rect x="39" y="30" width="22" height="17" rx="3" fill="#8fa2c3"/><path d="M43 30v-5a7 7 0 0 1 14 0v5" fill="none" stroke="#8fa2c3" stroke-width="4"/>'}</svg>`;
+}
+const RULES={
+ GK:{open:['Onthoud, keeper: als wij de bal hebben, speel je mee. Kom uit je doel en toon je.','Retiens, gardien : quand on a le ballon, tu joues aussi. Sors de ton but et montre-toi.'],dicht:['Onthoud, keeper: sta altijd tussen de bal en het midden van je doel.','Retiens, gardien : place-toi toujours entre le ballon et le milieu de ton but.']},
+ CB:{open:['Onthoud, verdediger: schuif mee, maar blijf altijd achter de bal.','Retiens, défenseur : monte avec l’équipe, mais reste toujours derrière le ballon.'],dicht:['Onthoud, verdediger: blijf tussen de bal en ons doel. Ga niet zomaar naar de bal.','Retiens, défenseur : reste entre le ballon et notre but. Ne fonce pas sur le ballon.']},
+ FB:{open:['Onthoud, achterspeler: ga breed en loop mee langs de zijlijn.','Retiens, arrière : écarte-toi et monte le long de la ligne.'],dicht:['Onthoud, achterspeler: kom naar binnen en bescherm je kant.','Retiens, arrière : rentre vers le milieu et protège ton côté.']},
+ CM:{open:['Onthoud, middenvelder: zoek de vrije plek waar je maat naar jou kan passen.','Retiens, milieu : cherche la place libre où ton équipier peut te passer le ballon.'],dicht:['Onthoud, middenvelder: sta voor onze verdedigers en sluit het midden.','Retiens, milieu : place-toi devant nos défenseurs et ferme le milieu.']},
+ W:{open:['Onthoud, flankspeler: ga breed. Zo maak jij het veld groot.','Retiens, ailier : écarte-toi. C’est toi qui rends le terrain grand.'],dicht:['Onthoud, flankspeler: bal kwijt? Kom terug en naar binnen.','Retiens, ailier : ballon perdu ? Reviens et rentre vers le milieu.']},
+ ST:{open:['Onthoud, spits: blijf hoog en zoek de ruimte. Zo maak jij het veld lang.','Retiens, attaquant : reste haut et cherche l’espace. C’est toi qui rends le terrain long.'],dicht:['Onthoud, spits: jij bent de eerste verdediger. Zet druk of kom terug.','Retiens, attaquant : tu es le premier défenseur. Mets la pression ou reviens.']}
+};
+function directionHint(from,to){
+  const dx=to.x-from.x,dy=to.y-from.y,parts=[];
+  if(Math.hypot(dx,dy)<9)return t('Je stond er dichtbij. Nog een klein stapje.','Tu étais tout près. Encore un petit pas.');
+  if(dy<-7)parts.push(t('naar voor','vers l’avant'));else if(dy>7)parts.push(t('naar achter','vers l’arrière'));
+  if(dx<-7)parts.push(t('naar links','vers la gauche'));else if(dx>7)parts.push(t('naar rechts','vers la droite'));
+  return t(`Je moest meer ${parts.join(' en ')} gaan.`,`Tu devais aller plus ${parts.join(' et ')}.`);
 }
 const LEVELS=[
  {n:['Open of dicht?','Ouvrir ou fermer ?'],s:['Kijk wie de bal heeft en kies','Regarde qui a le ballon et choisis'],time:[3,2.2]},
@@ -1462,6 +1511,7 @@ function GL_render(ts){
   if(inMatch&&GL.matchPos){
     const panX=(ball.x-50)*.05;GL.zoom=Math.max(0,GL.zoom-dt*.7);
     wantPos=GL.matchPos.clone();wantPos.x+=panX;wantLook=GL.matchLook.clone();wantLook.x+=panX*.8;
+    GL.coachPan=(GL.coachPan||0)+((view.coach?15:0)-(GL.coachPan||0))*Math.min(1,dt*4);wantPos.z+=GL.coachPan;wantLook.z+=GL.coachPan;
     GL.skillZoom=(GL.skillZoom||0)+((GL.skillCam?1:0)-(GL.skillZoom||0))*Math.min(1,dt*5);
     if(GL.skillZoom>.001&&me){const fx=me.x-50,fz=me.y-70;wantPos=wantPos.clone().lerp(new T.Vector3(fx,46,fz+44),GL.skillZoom*.72);wantLook=wantLook.clone().lerp(new T.Vector3(fx,4,fz-8),GL.skillZoom*.72)}
     if(GL.zoom>0){const g=Math.min(1,GL.zoom);wantPos.lerp(new T.Vector3(ball.x-50,wantPos.y*.82,wantPos.z*.82),g*.5)}
@@ -1484,6 +1534,23 @@ function GL_render(ts){
   if(GL.comp){GL.grade.uniforms.uFlash.value=GL.flashAmt*.22;GL.comp.render()}else GL.r.render(GL.scene,cam);
   GL_health();
 }
+function drawCoachMarks(){
+  const k=view.coach;if(!k)return;const c=ctx,labels=[];
+  const label=(txt,x,y,col,dir)=>labels.push({txt,x,y,col,dir});
+  const arrow=(a,b,col)=>{const A=proj(a.x,a.y),B=proj(b.x,b.y),an=Math.atan2(B.y-A.y,B.x-A.x);
+    c.lineCap='round';c.strokeStyle='#10131b';c.lineWidth=8;c.beginPath();c.moveTo(A.x,A.y);c.lineTo(B.x,B.y);c.stroke();
+    c.strokeStyle=col;c.lineWidth=5;c.setLineDash([12,9]);c.lineDashOffset=reduced?0:-clock/32;c.beginPath();c.moveTo(A.x,A.y);c.lineTo(B.x,B.y);c.stroke();c.setLineDash([]);c.lineDashOffset=0;
+    c.fillStyle=col;c.strokeStyle='#10131b';c.lineWidth=2;c.beginPath();c.moveTo(B.x,B.y);c.lineTo(B.x-Math.cos(an-.45)*20,B.y-Math.sin(an-.45)*20);c.lineTo(B.x-Math.cos(an+.45)*20,B.y-Math.sin(an+.45)*20);c.closePath();c.fill();c.stroke()};
+  if(k.carrier){const a=k.carrier,o=proj(a.x,a.y),pul=reduced?0:Math.sin(clock/150)*1.5;groundEllipse(a.x,a.y,12+pul,'rgba(255,227,77,.22)','#ffe34d',3);label(k.carrierText,o.x,o.y+Math.max(18,o.s*6),'#ffe34d',1)}
+  if(k.mine){const m=k.mine,o=proj(m.x,m.y);groundEllipse(m.x,m.y,8,'rgba(255,110,90,.35)','#ff8d7d',3);const e=o.s*3;c.strokeStyle='#ff8d7d';c.lineWidth=4;c.beginPath();c.moveTo(o.x-e,o.y-e*.6);c.lineTo(o.x+e,o.y+e*.6);c.moveTo(o.x+e,o.y-e*.6);c.lineTo(o.x-e,o.y+e*.6);c.stroke();label(k.mineText,o.x,o.y-Math.max(30,o.s*15),'#ff8d7d',-1)}
+  if(k.best){const b=k.best,o=proj(b.x,b.y);groundEllipse(b.x,b.y,8,'rgba(116,224,138,.42)','#c9f9d4',3);label(k.bestText,o.x,o.y-Math.max(30,o.s*13),'#74e08a',-1)}
+  if(k.goalLine)arrow(k.goalLine[0],k.goalLine[1],'#ff8d7d');
+  if(k.lane)arrow(k.lane[0],k.lane[1],'#74e08a');
+  /* Labels push each other apart so every word stays readable */
+  c.font='17px "Barlow Condensed","Arial Black",sans-serif';c.textAlign='center';c.textBaseline='middle';
+  const placed=[];labels.forEach(l=>{const w=c.measureText(l.txt).width+14,X=clamp(l.x,w/2+2,W-w/2-2);let Y=clamp(l.y,12,H-12);for(let n=0;n<8;n++){const hit=placed.find(q=>Math.abs(q.X-X)<(q.w+w)/2+2&&Math.abs(q.Y-Y)<25);if(!hit)break;Y=clamp(hit.Y+l.dir*26,12,H-12)}placed.push({X,Y,w,txt:l.txt,col:l.col})});
+  placed.forEach(q=>{c.fillStyle='#10131b';c.fillRect(q.X-q.w/2-1,q.Y-12,q.w+2,24);c.fillStyle=q.col;c.fillRect(q.X-q.w/2,q.Y-11,q.w,22);c.fillStyle='#10131b';c.fillText(q.txt,q.X,q.Y+1)});
+}
 function drawGLOverlay(){
   /* Only what must stay readable above the 3D: hints, name, ball pin */
   const c=ctx;c.setTransform(DPR,0,0,DPR,0,0);c.clearRect(0,0,W,H);
@@ -1502,9 +1569,10 @@ function drawGLOverlay(){
   if(view.marker){const o=proj(view.marker.x,view.marker.y),m=3*U*o.s;c.strokeStyle='#ffe34d';c.lineWidth=3;c.beginPath();c.moveTo(o.x-m,o.y-m*.6);c.lineTo(o.x+m,o.y+m*.6);c.moveTo(o.x+m,o.y-m*.6);c.lineTo(o.x-m,o.y+m*.6);c.stroke()}
   /* Ball trail while it flies */
   if(!ball.owner&&ball.from){const o=GL.projAt(ball.x,ball.y,ball.z+1.7);ball.trail.push({x:o.x,y:o.y});if(ball.trail.length>9)ball.trail.shift();ball.trail.forEach((q,i)=>{c.globalAlpha=(i+1)/ball.trail.length*.4;c.fillStyle='#fff';c.beginPath();c.arc(q.x,q.y,(i+1)*.75,0,7);c.fill()});c.globalAlpha=1}else ball.trail.length=0;
+  drawCoachMarks();
   /* Your name */
   const sz=FORMATS[setup.fmt].size;
-  if(me){
+  if(me&&!view.coach){
     const head=GL.projAt(me.x,me.y,PLAYER_H*sz*1.12+1.5),name=setup.name.toUpperCase(),fs=Math.max(14,Math.min(21,3.5*proj(me.x,me.y).s));
     c.font=`${fs}px "Barlow Condensed","Arial Black",sans-serif`;
     const w=c.measureText(name).width+fs,h=fs*1.4,lx=clamp(head.x,w/2+3,W-w/2-3);let ly=head.y-h-6;if(ly<3)ly=3;
@@ -1514,7 +1582,7 @@ function drawGLOverlay(){
   }
   /* Who has the ball */
   const a=ball.owner;
-  if(a){
+  if(a&&!view.coach){
     const sc=a===me?1.12:1,top=GL.projAt(a.x,a.y,PLAYER_H*sz*sc+(a===me?7.5:2.5)),base=proj(a.x,a.y);
     const r=Math.max(11,Math.min(17,2.6*base.s)),bob=reduced?0:Math.sin(clock/170)*3,col=a.team==='us'?kit.main:'#2a6be2',x=clamp(top.x,r+3,W-r-3),y=Math.max(r+3,top.y-r*1.7+bob-(a===me?12:0));
     c.fillStyle=col;c.strokeStyle='#fff';c.lineWidth=2.6;c.beginPath();c.arc(x,y,r,0,7);c.moveTo(x-r*.55,y+r*.8);c.lineTo(x,y+r*1.65);c.lineTo(x+r*.55,y+r*.8);c.closePath();c.fill();c.stroke();
@@ -1756,6 +1824,7 @@ function draw(){
     const fs=Math.max(13,4.3*U*b.s);c.font=`${fs}px "Barlow Condensed","Arial Black",sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineWidth=3;c.strokeStyle='#0b0f18';const lab=t('HIER!','ICI !');c.strokeText(lab,clamp(b.x,28,W-28),b.y-fs*1.2);c.fillStyle='#d6ffe0';c.fillText(lab,clamp(b.x,28,W-28),b.y-fs*1.2);
   }
   if(view.marker){const o=proj(view.marker.x,view.marker.y),m=3*U*o.s;c.strokeStyle='#ffe34d';c.lineWidth=3;c.beginPath();c.moveTo(o.x-m,o.y-m*.6);c.lineTo(o.x+m,o.y+m*.6);c.moveTo(o.x+m,o.y-m*.6);c.lineTo(o.x-m,o.y+m*.6);c.stroke()}
+  drawCoachMarks();
   /* Depth-sorted cast */
   const all=[...us,...them];
   all.forEach(a=>{const v=Math.hypot(a.x-a.px,a.y-a.py);a.px=a.x;a.py=a.y;const target=clamp(v*2.2,0,1);a.move+=(target-a.move)*.2;a.phase+=v*.55+.02});
@@ -1907,7 +1976,7 @@ async function startMatch(lv){
   const my=++token;tweens.forEach(x=>x.res());tweens=[];
   try{speechSynthesis.cancel()}catch(e){}
   GL.mode='match';buildTeams();clearScene();bg=null;GL.showHero=false;if(GL.on){GL_setMode('match');GL.checkAt=clock+2400;GL.badChecks=0;GL_updateScreen();GL.camPos.set(70,70,150);GL.camLook.set(0,4,0)}
-  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,log:[],list:pickSituations()};$('streak').hidden=true;
+  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,miss:[],log:[],list:pickSituations()};$('streak').hidden=true;
   $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
   audio();startAmbience();updateScore();setBar(1);setDock('');show('play');
   const sel=slotOf();$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
@@ -1958,6 +2027,7 @@ function judge(c,a){
 }
 async function resolveAction(c,a,ms,total,carrier,my){
   const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;
+  const snap=[...us,...them].map(q=>({a:q,x:q.x,y:q.y})),mine=j.spot?{x:j.spot.x,y:j.spot.y}:{x:me.x,y:me.y};
   if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},runDur(me,j.spot.x,j.spot.y,300,1250),'run');if(!alive())return;view.marker=null}
   us.forEach((m,i)=>{
     if(m===carrier||m===me||m.gk||i===c.presser)return;
@@ -1970,7 +2040,7 @@ async function resolveAction(c,a,ms,total,carrier,my){
   G.log.push(j.res==='good'?'good':j.res==='close'?'close':'bad');
   /* Missed moments come back in the next match */
   if(j.res!=='good'&&c.sit)seenSit.set(c.sit,-3);
-  G.demo=j.res!=='good'?{c}:null;
+  if(j.res!=='good'&&c.sit){const idx=SITS.indexOf(c.sit);if(idx>=0)G.miss.push(idx)}
   if(a.kind!=='late'){G.rtSum+=ms;G.rtN++}
   $('streak').hidden=G.streak<2;$('streak').textContent=t(`Reeks ${G.streak}`,`Série ${G.streak}`);
   if(j.res==='good'){
@@ -1985,6 +2055,8 @@ async function resolveAction(c,a,ms,total,carrier,my){
     if(isOpen)await sceneLost(carrier,my);else await sceneAgainst(carrier,my);if(!alive())return;
     view.ghost=c.ideal;
   }
+  G.demo=kind==='good'?null:{c,j,title,carrier,snap,mine};
+  if(kind==='bad'){await coachSession(G.demo,my);if(!alive())return;view={};G.demo=null;return}
   await feedback(title,p2(j.tip),kind,my);
 }
 async function kick(tx,ty,dur,h=2,opts={}){
@@ -2098,6 +2170,44 @@ async function sceneAgainst(carrier,my){
   if(GL.on){us.forEach(a=>{if(!a.gk)setAct(a,'despair',1200)});them.forEach(a=>{if(!a.gk)setAct(a,'cheer',1200)})}
   await wait(GL.on?1000:700);
 }
+/* Guided explanation: rewind to the moment, then four short steps */
+let coachRun=0;
+function coachSession(d,my){
+  return new Promise(res=>{
+    const {c,j,title,carrier,snap,mine}=d,run=++coachRun,goal={x:50,y:133};
+    const bPos={x:c.ball[0],y:c.ball[1]},isOpen=c.isOpen,alive=()=>my===token&&run===coachRun;
+    const who=isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.');
+    const plan=isOpen?t('Dus spelen we OPEN: maak het veld groot.','Donc on OUVRE : rends le terrain grand.'):t('Dus spelen we DICHT: maak het veld klein.','Donc on FERME : rends le terrain petit.');
+    const late=j.res==='late',close=j.res==='close';
+    const reason=late?t('Je koos niet op tijd. Kijk eerst naar de bal en beslis dan snel.','Tu n’as pas choisi à temps. Regarde d’abord le ballon, puis décide vite.'):close?t('Dat was bijna goed!','C’était presque bon !'):p2(j.tip===c.tip?(isOpen?['Op die plek kon je maat niet goed naar jou passen.','À cet endroit, ton équipier ne pouvait pas bien te passer le ballon.']:['Op die plek stond je niet op de weg naar ons doel.','À cet endroit, tu n’étais pas sur le chemin de notre but.']):j.tip);
+    const steps=[
+     {head:title,text:`${who} ${plan}`,enter:async()=>{
+       view={coach:{carrier,carrierText:t('BAL','BALLON')}};ball.from=ball.to=null;ball.z=0;ball.fall=0;ball.owner=null;
+       snap.forEach(q=>{tween(q.a,{x:q.x,y:q.y},600,'run')});tween(ball,{x:bPos.x,y:bPos.y},600,'out');
+       await wait(620);if(!alive())return;ball.owner=carrier}},
+     {head:t('Hier stond jij','Tu étais ici'),text:`${reason} ${directionHint(mine,c.ideal)}`,enter:async()=>{
+       view={coach:{carrier,carrierText:t('BAL','BALLON'),mine,mineText:t('JIJ','TOI')}};
+       tween(me,{x:mine.x,y:mine.y},350,'run')}},
+     {head:t('Hier is het beter','C’est mieux ici'),text:`${p2(c.tip)} ${isOpen?t('De groene pijl is de weg van de bal naar jou.','La flèche verte est le chemin du ballon vers toi.'):t('De rode pijl is hun weg naar ons doel. Jij staat in de weg.','La flèche rouge est leur chemin vers notre but. Tu le bloques.')}`,enter:async()=>{
+       view={coach:{carrier,carrierText:t('BAL','BALLON'),mine,mineText:t('JIJ','TOI'),best:c.ideal,bestText:t('BESTE PLEK','MEILLEURE PLACE'),lane:isOpen?[bPos,c.ideal]:null,goalLine:isOpen?null:[bPos,goal]}}}},
+     {head:t('Kijk!','Regarde !'),text:`${isOpen?t('Nu ben jij vrij en krijg je de bal.','Maintenant tu es libre et tu reçois le ballon.'):t('Nu pak jij de bal en is ons doel veilig.','Maintenant tu prends le ballon et notre but est protégé.')} ${p2(RULES[c.role][isOpen?'open':'dicht'])}`,enter:async()=>{
+       view={coach:{best:c.ideal,bestText:t('BESTE PLEK','MEILLEURE PLACE')}};
+       await tween(me,{x:c.ideal.x,y:c.ideal.y},Math.max(900,runDur(me,c.ideal.x,c.ideal.y,500,1500)),'run');if(!alive())return;
+       await kick(me.x,me.y,Math.max(420,dist(ball,me)*8),isOpen?.8:.4);if(!alive())return;ball.owner=me;setAct(me,'trap',380);sfx.good()}}
+    ];
+    let i=-1;const box=$('coach'),nextBtn=$('coachNext');
+    const finish=()=>{if(run!==coachRun)return;coachRun++;box.hidden=true;view={};res()};
+    const show=()=>{
+      i++;if(i>=steps.length){finish();return}
+      const st=steps[i];$('coachDots').innerHTML=steps.map((_,n)=>`<i class="${n<=i?'on':''}"></i>`).join('');
+      $('coachTitle').textContent=st.head;$('coachText').textContent=st.text;
+      nextBtn.textContent=i===steps.length-1?t('Begrepen!','Compris !'):t('Verder','Suite');
+      speak(st.head+'. '+st.text);st.enter();
+    };
+    nextBtn.onclick=show;$('coachSkip').onclick=finish;
+    $('fb').hidden=true;$('prompt').hidden=true;$('choices').hidden=true;box.hidden=false;show();
+  });
+}
 function feedback(title,tip,kind,my){return new Promise(res=>{
   $('prompt').hidden=true;$('choices').hidden=true;$('fb').hidden=false;$('fb').className='feedback '+kind;$('fbTitle').textContent=title;$('fbTip').textContent=tip;
   if(kind==='good')sfx.good();speak(title+' '+tip);
@@ -2119,8 +2229,10 @@ function finish(){
   if(GL.on){GL.hero=me||us[us.length-1];if(G.us>=G.them){setAct(GL.hero,'cheer',60000);GL.jump=G.us>G.them?.8:.3}else setAct(GL.hero,'despair',60000)}
   sfx.whistle();show('result');
   renderResultGoals(news);
-  const pr=loadProgress(),todays=pr.history.filter(h=>h.day===todayKey()).length,streakNow=dayStreak(pr);
+  const pr=loadProgress(),todays=pr.stats.history.filter(h=>h.day===todayKey()).length,streakNow=dayStreak(pr);
   let nudge=$('rNudge');if(todays>=3){nudge.hidden=false;nudge.textContent=t('Sterk gespeeld! Neem nu een echte bal en oefen buiten.','Bien joué ! Maintenant, prends un vrai ballon et va t’entraîner dehors.')}else if(streakNow>=2){nudge.hidden=false;nudge.textContent=t(`${streakNow} dagen na elkaar! Kom morgen terug.`,`${streakNow} jours de suite ! Reviens demain.`)}else nudge.hidden=true;
+  const lb=$('rLessons'),uniq=[...new Set(G.miss||[])].slice(-3);
+  if(uniq.length){lb.hidden=false;lb.innerHTML='<b></b><ul></ul>';lb.querySelector('b').textContent=t('Dit onthoud ik','Ce que je retiens');uniq.forEach(id=>{const li=document.createElement('li');li.textContent=p2(SITS[id].tip);lb.querySelector('ul').appendChild(li)})}else lb.hidden=true;
   const rs=$('rSkills'),moves=G.skillsDone||[];
   if(moves.length){const pick=SKILLS.find(k=>(G.newSkills||[]).includes(k.id))||SKILLS.find(k=>k.id===moves[moves.length-1]);const isNew=(G.newSkills||[]).includes(pick.id);rs.hidden=false;rs.innerHTML='<b></b><span></span>';rs.querySelector('b').textContent=(isNew?t('Nieuw gebaar: ','Nouveau geste : '):t('Oefen thuis: ','À essayer : '))+p2(pick.n);rs.querySelector('span').textContent=p2(pick.how)}else rs.hidden=true;
   queueAwards(news.cups);
@@ -2129,7 +2241,13 @@ function finish(){
 const todayKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function dayStreak(p){let n=0;const d=new Date();if(!p.days.includes(todayKey(d)))d.setDate(d.getDate()-1);while(p.days.includes(todayKey(d))){n++;d.setDate(d.getDate()-1)}return n}
 const progressKey=()=>'fts-progress-'+(setup.name||'').toLowerCase();
-function loadProgress(){const v=store.get(progressKey(),null);return Object.assign(blankProgress(),v&&typeof v==='object'?v:{})}
+const blankStats=()=>({since:todayKey(),matches:0,good:0,open:0,dicht:0,total:0,rtSum:0,rtN:0,posStats:{},history:[],miss:{}});
+function loadProgress(){
+  const v=store.get(progressKey(),null),p=Object.assign(blankProgress(),v&&typeof v==='object'?v:{});
+  /* Older saves: copy what was already measured into the statistics */
+  if(!p.stats){p.stats=Object.assign(blankStats(),{since:null,matches:p.matches,good:p.good,open:p.open,dicht:p.dicht,total:p.total||0,rtSum:p.rtSum||0,rtN:p.rtN||0,posStats:p.posStats||{},history:p.history||[]})}
+  return p;
+}
 const addUnique=(list,v)=>{if(!list.includes(v))list.push(v)};
 function recordMatch(starsWon){
   const p=loadProgress(),slot=slotOf();
@@ -2148,9 +2266,10 @@ function recordMatch(starsWon){
   if(G.lv===2&&G.us>G.them&&setup.fmt===8)p.m8l3++;
   if(G.lv===2&&G.us>G.them&&setup.fmt===11)p.m11l3++;
   if(G.open===4)p.openP++;if(G.dicht===4)p.dichtP++;if(G.open===4&&G.dicht===4)p.perfect++;
-  const statKey=setup.fmt+'-'+slot.id,ps=Object.assign({tot:0,good:0},p.posStats[statKey]);ps.tot+=ACTIONS;ps.good+=G.open+G.dicht;p.posStats[statKey]=ps;
-  p.total+=ACTIONS;p.rtSum+=G.rtSum;p.rtN+=G.rtN;
-  p.history.push({fmt:setup.fmt,pos:slot.id,lv:G.lv,us:G.us,them:G.them,open:G.open,dicht:G.dicht,day:todayKey()});if(p.history.length>12)p.history.shift();
+  const S=p.stats,statKey=setup.fmt+'-'+slot.id,ps=Object.assign({tot:0,good:0},S.posStats[statKey]);ps.tot+=ACTIONS;ps.good+=G.open+G.dicht;S.posStats[statKey]=ps;
+  S.matches++;S.good+=G.open+G.dicht;S.open+=G.open;S.dicht+=G.dicht;S.total+=ACTIONS;S.rtSum+=G.rtSum;S.rtN+=G.rtN;
+  S.history.push({fmt:setup.fmt,pos:slot.id,lv:G.lv,us:G.us,them:G.them,open:G.open,dicht:G.dicht,day:todayKey()});if(S.history.length>12)S.history.shift();
+  (G.miss||[]).forEach(id=>{S.miss[id]=(S.miss[id]||0)+1});
   addUnique(p.days,todayKey());if(p.days.length>90)p.days.shift();p.bestDays=Math.max(p.bestDays,dayStreak(p));
   const moves=G.skillsDone||[];p.skillCount+=moves.length;G.newSkills=[];moves.forEach(id=>{if(!p.skills.includes(id)){p.skills.push(id);G.newSkills.push(id)}});
   addUnique(p.roles,slot.role);addUnique(p.positions,setup.fmt+'-'+slot.id);addUnique(p.formats,setup.fmt);
@@ -2199,10 +2318,11 @@ function showNextAward(){
   $('awardGo').textContent=t('Hoera!','Super !');
   $('award').hidden=false;sfx.goal();speak(t(`Proficiat, ${setup.name}! Nieuwe beker: `,`Bravo, ${setup.name} ! Nouveau trophée : `)+p2(cup.n));
 }
+function flashStatsDone(){const s=$('statsSub');s.textContent=t('Gewist.','Effacé.')+' '+s.textContent}
 function posName(key){const [f,id]=key.split('-'),sl=FORMATS[f]&&FORMATS[f].slots.find(x=>x.id===id);return sl?`${roleName(sl)} (${f})`:key}
 function renderStats(){
-  const p=loadProgress(),box=$('statsBody');box.innerHTML='';
-  $('statsTitle').textContent=t('Ouders en coach','Parents et coach');$('statsSub').textContent=setup.name;
+  const P_=loadProgress(),p=P_.stats,box=$('statsBody');box.innerHTML='';
+  $('statsTitle').textContent=t('Ouders en coach','Parents et coach');$('statsSub').textContent=setup.name+(p.since?' · '+t('sinds ','depuis ')+p.since.split('-').reverse().join('/'):'');
   const card=title=>{const c=document.createElement('div');c.className='stat-card';const h=document.createElement('h3');h.textContent=title;c.appendChild(h);box.appendChild(c);return c};
   const pct=(a,b)=>b?Math.round(a/b*100):0;
   const a=card(t('Samenvatting','Résumé')),big=document.createElement('div');big.className='stat-big';
@@ -2218,16 +2338,26 @@ function renderStats(){
   if(keys.length){const c=card(t('Per plek','Par poste'));keys.sort((x,y)=>pct(p.posStats[y].good,p.posStats[y].tot)-pct(p.posStats[x].good,p.posStats[x].tot)).forEach(k=>{const v=pct(p.posStats[k].good,p.posStats[k].tot),r=document.createElement('div');r.className='pos-row';const n=document.createElement('span');n.textContent=posName(k);const bar=document.createElement('div');bar.className='bar';bar.innerHTML=`<i class="${v>=70?'high':v>=45?'mid':'low'}" style="width:${v}%"></i>`;const b=document.createElement('b');b.textContent=v+'%';r.append(n,bar,b);c.appendChild(r)})}
   /* Last matches, drawn to a fixed 0 to 8 scale */
   if(p.history.length){const c=card(t('Laatste matchen','Derniers matchs')),info=document.createElement('p');info.textContent=t('Goede keuzes per match, van 0 tot 8.','Bons choix par match, de 0 à 8.');c.appendChild(info);const hist=document.createElement('div');hist.className='hist';hist.setAttribute('role','img');hist.setAttribute('aria-label',p.history.map(h=>h.open+h.dicht).join(', '));p.history.forEach(h=>{const i=document.createElement('i');i.style.height=((h.open+h.dicht)/8*100)+'%';hist.appendChild(i)});c.appendChild(hist);const sc=document.createElement('div');sc.className='hist-scale';sc.innerHTML=`<span>${t('oudste','plus ancien')}</span><span>${t('nieuwste','plus récent')}</span>`;c.appendChild(sc)}
+  /* Moments he misses most */
+  const missed=Object.entries(p.miss||{}).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  if(missed.length){const c=card(t('Vaak fout','Erreurs fréquentes')),info=document.createElement('p');info.textContent=t('Hierover kan je samen praten:','Vous pouvez en parler ensemble :');c.appendChild(info);missed.forEach(([id,n])=>{if(!SITS[id])return;const l=document.createElement('p');l.textContent=`${n}× ${p2(SITS[id].tip)}`;c.appendChild(l)})}
   /* Backup */
   const bk=card(t('Bewaarcode','Code de sauvegarde')),bp=document.createElement('p');bp.textContent=t('Kopieer deze code om de bekers op een ander toestel terug te zetten.','Copiez ce code pour remettre les trophées sur un autre appareil.');bk.appendChild(bp);
   const code=document.createElement('textarea');code.id='backupCode';code.setAttribute('aria-label',t('Bewaarcode','Code de sauvegarde'));
-  try{code.value=btoa(unescape(encodeURIComponent(JSON.stringify({v:1,name:setup.name,p}))))}catch(e){code.value=''}bk.appendChild(code);
+  try{code.value=btoa(unescape(encodeURIComponent(JSON.stringify({v:1,name:setup.name,p:P_}))))}catch(e){code.value=''}bk.appendChild(code);
   const row=document.createElement('div');row.className='small-actions';const cp=document.createElement('button'),rs=document.createElement('button');cp.textContent=t('Kopieer','Copier');rs.textContent=t('Zet code terug','Restaurer ce code');row.append(cp,rs);bk.appendChild(row);
   const msg=document.createElement('p');msg.className='note';msg.setAttribute('role','status');bk.appendChild(msg);
   cp.onclick=async()=>{try{await navigator.clipboard.writeText(code.value);msg.textContent=t('Gekopieerd.','Copié.')}catch(e){code.focus();code.select();msg.textContent=t('Selecteer en kopieer de code.','Sélectionnez et copiez le code.')}};
-  rs.onclick=()=>{try{const d=JSON.parse(decodeURIComponent(escape(atob(code.value.trim()))));if(!d||!d.p||!Array.isArray(d.p.cups))throw 0;store.set(progressKey(),d.p);renderStats();$('statsSub').textContent=setup.name;box.lastChild.querySelector('.note').textContent=t('Teruggezet.','Restauré.')}catch(e){msg.textContent=t('Deze code klopt niet. Plak de volledige code en probeer opnieuw.','Ce code n’est pas valide. Collez le code complet et réessayez.')}};
+  rs.onclick=()=>{try{const d=JSON.parse(decodeURIComponent(escape(atob(code.value.trim()))));if(!d||!d.p||!Array.isArray(d.p.cups))throw 0;store.set(progressKey(),d.p);renderStats();$('statsBody').querySelector('.note').textContent=t('Teruggezet.','Restauré.')}catch(e){msg.textContent=t('Deze code klopt niet. Plak de volledige code en probeer opnieuw.','Ce code n’est pas valide. Collez le code complet et réessayez.')}};
   /* Install and privacy */
   const inst=card(t('Op het beginscherm','Sur l’écran d’accueil')),ip=document.createElement('p');ip.textContent=t('Open het spel in Safari, tik op Delen en kies "Zet op beginscherm". Dan start het als een app.','Ouvrez le jeu dans Safari, touchez Partager puis « Sur l’écran d’accueil ». Il s’ouvre alors comme une application.');inst.appendChild(ip);
+  /* Clearing */
+  const rz=card(t('Wissen','Effacer')),rzInfo=document.createElement('p');rzInfo.textContent=t('De statistieken wissen doet niets met de bekers, de gestes en de voortgang.','Effacer les statistiques ne change rien aux trophées, aux gestes ni à la progression.');rz.appendChild(rzInfo);
+  const rzBtn=document.createElement('button'),allBtn=document.createElement('button'),rzRow=document.createElement('div');rzRow.className='small-actions';rzBtn.id='resetStats';allBtn.id='resetAll';allBtn.className='danger';rzBtn.textContent=t('Statistieken wissen','Effacer les statistiques');allBtn.textContent=t('Alles wissen, ook bekers','Tout effacer, trophées aussi');rzRow.append(rzBtn,allBtn);rz.appendChild(rzRow);
+  const rzMsg=document.createElement('p');rzMsg.className='note';rzMsg.setAttribute('role','status');rz.appendChild(rzMsg);
+  let armed=null;
+  rzBtn.onclick=()=>{if(armed!=='stats'){armed='stats';rzMsg.textContent=t('Zeker? Tik nog een keer. De bekers blijven.','Sûr ? Touchez encore une fois. Les trophées restent.');return}const x=loadProgress();x.stats=blankStats();store.set(progressKey(),x);renderStats();$('statsBody').querySelector('.stat-card').scrollIntoView();flashStatsDone()};
+  allBtn.onclick=()=>{if(armed!=='all'){armed='all';rzMsg.textContent=t('Zeker? Tik nog een keer. Ook alle bekers worden gewist.','Sûr ? Touchez encore une fois. Tous les trophées seront aussi effacés.');return}store.set(progressKey(),blankProgress());renderStats();flashStatsDone()};
   const pv=card(t('Privacy','Vie privée')),pp=document.createElement('p');pp.textContent=t('De naam en de bekers blijven alleen op dit toestel. Er is geen account, geen reclame en er wordt niets verstuurd.','Le prénom et les trophées restent uniquement sur cet appareil. Il n’y a ni compte, ni publicité, et rien n’est envoyé.');pv.appendChild(pp);
 }
 let cabReturn='setup',resetArmed=false;
@@ -2264,7 +2394,6 @@ function renderCabinet(){
   const known=SKILLS.filter(k=>p.skills.includes(k.id));
   SKILLS.forEach(k=>{const has=known.includes(k),d=document.createElement('div');d.className='cup skill-card'+(has?' won':'');d.innerHTML='<div><strong></strong><ul><li></li></ul></div>';d.querySelector('strong').textContent=(has?'✓ ':'')+p2(k.n);d.querySelector('li').textContent=has?p2(k.how):(k.need?t('Nog niet gedaan. Tip: kies goed én snel.','Pas encore fait. Astuce : choisis bien et vite.'):t('Nog niet gedaan. Kies een goede plek.','Pas encore fait. Choisis une bonne place.'));box.appendChild(d)});
   section(t('Zeer moeilijk','Très difficile'));HARD_CUPS.forEach(card);
-  resetArmed=false;$('cabReset').textContent=t('Opnieuw beginnen','Tout recommencer');
 }
 function openCabinet(from){
   if(!setup.name){const n=$('nameInput').value.trim();if(!n){$('nameErr').textContent=t('Schrijf eerst je naam.','Écris d’abord ton prénom.');$('nameInput').focus();return}setup.name=n}
@@ -2281,22 +2410,28 @@ cv.addEventListener('pointerdown',e=>{
 $('btnOpen').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'open'})};
 $('btnDicht').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'dicht'})};
 $('fbGo').onclick=()=>{if(advance)advance()};
-/* Show the right move calmly: the player walks to the spot and receives the ball */
 $('fbShow').onclick=async()=>{
-  const d=G&&G.demo;if(!d)return;const my=token,c=d.c,sm=$('fbShow');sm.disabled=true;G.demo=null;
-  ball.from=ball.to=null;
-  await tween(me,{x:c.ideal.x,y:c.ideal.y},Math.max(1100,runDur(me,c.ideal.x,c.ideal.y,600,1800)*1.5),'run');if(my!==token||!advance)return;
-  view.ghost=null;sfx.good();
-  const start={x:c.ball[0],y:c.ball[1]};ball.owner=null;ball.x=start.x;ball.y=start.y;
-  await kick(me.x,me.y,Math.max(450,dist(start,me)*9),1);if(my!==token||!advance)return;
-  ball.owner=me;setAct(me,'trap',380);speak(p2(c.tip));
+  const d=G&&G.demo;if(!d||!advance)return;const my=token,go=advance;clearTimeout(goTimer);G.demo=null;
+  await coachSession(d,my);if(my===token)go();
 };
 $('openCab').onclick=()=>{if(setup.step===1&&$('nameInput').value.trim())setup.name=$('nameInput').value.trim();openCabinet('setup')};
 $('rCab').onclick=()=>openCabinet('result');
 $('cabBack').onclick=()=>{show(cabReturn);if(cabReturn==='setup'&&setup.step===4)renderLevels();if(cabReturn==='result')renderNextGoal($('rNext'))};
-$('cabReset').onclick=()=>{if(!resetArmed){resetArmed=true;$('cabReset').textContent=t('Zeker? Tik nog een keer om alles te wissen.','Sûr ? Touche encore une fois pour tout effacer.');return}store.set(progressKey(),blankProgress());renderCabinet()};
 $('awardGo').onclick=showNextAward;
-$('openStats').onclick=()=>{renderStats();show('stats')};
+const STATS_CODE='0000';let pinValue='';
+function pinPaint(){[...$('pinDots').children].forEach((d,i)=>d.classList.toggle('on',i<pinValue.length))}
+function pinOpen(){pinValue='';pinPaint();$('pinMsg').textContent=t('Geef de code in','Entrez le code');$('pin').hidden=false}
+function pinKey(k){
+  if(k==='del'){pinValue=pinValue.slice(0,-1);pinPaint();return}
+  if(pinValue.length>=4)return;pinValue+=k;pinPaint();
+  if(pinValue.length===4){
+    if(pinValue===STATS_CODE){$('pin').hidden=true;pinValue='';renderStats();show('stats')}
+    else{const box=$('pinDots');box.classList.remove('pin-bad');void box.offsetWidth;box.classList.add('pin-bad');$('pinMsg').textContent=t('Foute code. Probeer opnieuw.','Code incorrect. Réessayez.');setTimeout(()=>{pinValue='';pinPaint()},350)}
+  }
+}
+['1','2','3','4','5','6','7','8','9','del','0'].forEach(k=>{const b=document.createElement('button');b.type='button';b.id='pinKey'+k;b.textContent=k==='del'?'⌫':k;if(k==='del')b.setAttribute('aria-label','Wis');b.onclick=()=>pinKey(k);$('pinPad').appendChild(b)});
+$('pinClose').onclick=()=>{$('pin').hidden=true};
+$('openStats').onclick=pinOpen;
 $('statsBack').onclick=()=>{renderCabinet();show('cabinet')};
 $('openCab').innerHTML=cupSVG(FINAL_CUP.col);$('openCab').style.padding='8px';
 $('soundHome').onclick=toggleSound;$('soundPlay').onclick=toggleSound;
@@ -2309,7 +2444,7 @@ $('back').onclick=()=>goStep(setup.step-1);
 $('quit').onclick=()=>setPaused(true);
 $('pauseGo').onclick=()=>setPaused(false);
 $('pauseStop').onclick=()=>{setPaused(false);stopMatch()};
-const stopMatch=()=>{token++;scripts.forEach(x=>x.res());scripts=[];GL.skillCam=false;if(me)me.skill=null;deciding=null;advance=null;clearTimeout(goTimer);tweens.forEach(x=>x.res());tweens=[];clearScene();try{speechSynthesis.cancel()}catch(e){}hideBanner();show('setup');goStep(4)};
+const stopMatch=()=>{token++;coachRun++;$('coach').hidden=true;scripts.forEach(x=>x.res());scripts=[];GL.skillCam=false;if(me)me.skill=null;deciding=null;advance=null;clearTimeout(goTimer);tweens.forEach(x=>x.res());tweens=[];clearScene();try{speechSynthesis.cancel()}catch(e){}hideBanner();show('setup');goStep(4)};
 $('rMenu').onclick=()=>{show('setup');goStep(3)};
 $('rAgain').onclick=()=>startMatch(G.lv);
 $('langNl').onclick=()=>setLang('nl');$('langFr').onclick=()=>setLang('fr');
