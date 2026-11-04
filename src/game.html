@@ -1174,7 +1174,12 @@ function animatePlayer(a,dt,ts,inMatch){
   T.leanX=.06+.2*run+clamp(a.accS/(H*14),-.18,.2)+(a.gk?.24*(1-run):0);
   T.leanZ=clamp(-yawRate*.05,-.36,.36)*run+Math.sin(ts/1400+seed)*.012*(1-run);
   /* Keep-ups for the hero on the home screen */
-  if(a===GL.hero&&!inMatch&&GL.showHero&&!a.act){const q=(ts%1320)/1320,kick=Math.pow(Math.max(0,Math.cos(q*Math.PI*2)),6);T.hipX[1]=-.18-kick*.95;T.knee[1]=.55-kick*.28;T.ankle[1]=.2-kick*.5;T.armZ[0]=-.33;T.armZ[1]=.33;T.leanX=.1-kick*.12;T.rate=22}
+  if(a===GL.hero&&!inMatch&&GL.showHero&&!a.act){
+    /* Keep-ups: each foot in turn rises to meet the ball, slightly ahead so the joints arrive on time */
+    const P=JUGGLE_MS,t0=ts+JUGGLE_LEAD,i=Math.round(t0/P)%2,o=1-i,dq=t0/P-Math.round(t0/P),kick=Math.pow(Math.max(0,Math.cos(dq*Math.PI*1.25)),5);
+    T.hipX[i]=-.2-kick*.78;T.knee[i]=.48-kick*.34;T.ankle[i]=.16-kick*.42;T.hipX[o]=-.2;T.knee[o]=.42;T.ankle[o]=.2;
+    T.armZ=[-.34,.34];T.armX=[.1+kick*(i?.35:-.25),.1+kick*(i?-.25:.35)];T.elbow=[-.55,-.55];T.leanX=.14-kick*.1;T.leanZ=(i?-1:1)*.05*kick;T.headX=.34;T.chestYaw=(i?-1:1)*.09*kick;T.rate=26;
+  }
   applyAction(a,T,ts);
   /* Damped joints give weight and blend every transition */
   const j=m.j,k=1-Math.exp(-dt*(T.rate===16?16+run*22:T.rate*1.2)),L=(o,key,v)=>{o[key]+=(v-o[key])*k};
@@ -1402,6 +1407,19 @@ function GL_health(){
     if(GL.badChecks>=3){try{localStorage.setItem(GFX_KEY,String(gfxLevel()+1))}catch(e){}GL.checkAt=0;if(!window.__noReload)location.reload();else GL.healed=true}
   }else{GL.badChecks=0;GL.checkAt=0}
 }
+const JUGGLE_MS=860,JUGGLE_LEAD=55,JUGGLE_H=8.5;
+function heroJuggle(ts,dt,inMatch){
+  const h=GL.hero;if(!h||inMatch||ball.owner||!GL.showHero||!h.model)return;
+  const T=GL.T,P=JUGGLE_MS,i=Math.round(ts/P)%2,side=i?1:-1;
+  h.model.root.updateWorldMatrix(true,true);
+  const foot=(GL.footV||(GL.footV=new T.Vector3()));h.model.limbs[side].ankle.getWorldPosition(foot);
+  if(h.act){ball.x+=((h.x+1.6)-ball.x)*Math.min(1,dt*6);ball.y+=((h.y-3)-ball.y)*Math.min(1,dt*6);ball.z=0;return}
+  /* The ball is always travelling to the foot that plays it next */
+  const fx=foot.x+50,fy=foot.z+70+Math.cos(h.model.yaw)*1.5,k=1-Math.exp(-dt*12);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
+  const tq=((ts%P)+P)%P/P,par=4*tq*(1-tq),bs=2.15*Math.max(FORMATS[setup.fmt].size,.9),contact=Math.max(0,foot.y+.55-.0);
+  ball.z=contact*(1-par)+par*JUGGLE_H;
+  GL.juggleGap=Math.abs((bs+ball.z-bs)-(foot.y+.55));
+}
 function GL_render(ts){
   const cam=GL.cam,T=GL.T,rawDt=Math.max(.001,(ts-(GL.lastT||ts-16))/1000),dt=Math.min(.05,rawDt);GL.lastT=ts;GL.realDt=rawDt;
   /* Quality adapts to the device */
@@ -1427,7 +1445,7 @@ function GL_render(ts){
   fxUpdate(dt,ts);
   /* Ball */
   const bs=2.15*Math.max(FORMATS[setup.fmt].size,.9),bm=GL.ballMesh;
-  if(GL.hero&&!inMatch&&!ball.owner&&GL.showHero){const q=(ts%1320)/1320,f=q<.5?q+.5:q-.5;ball.z=.6+f*(1-f)*4*7.5;const hy=GL.hero.model;if(hy){const y=hy.yaw;ball.x=GL.hero.x+Math.sin(y)*3.1+Math.cos(y)*1;ball.y=GL.hero.y+Math.cos(y)*3.1-Math.sin(y)*1}}
+  heroJuggle(ts,dt,inMatch);
   const bdx=ball.x-(GL.bx??ball.x),bdz=ball.y-(GL.bz??ball.y),bdist=Math.hypot(bdx,bdz);GL.bx=ball.x;GL.bz=ball.y;
   bm.scale.set(bs,bs,bs);bm.position.set(ball.x-50,bs+ball.z,ball.y-70);
   if(bdist>.001){const ax=GL.ballAxis||(GL.ballAxis=new T.Vector3()),qq=GL.ballQ||(GL.ballQ=new T.Quaternion());ax.set(bdz,0,-bdx).normalize();qq.setFromAxisAngle(ax,bdist/bs);bm.quaternion.premultiply(qq)}
