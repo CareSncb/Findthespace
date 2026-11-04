@@ -314,6 +314,14 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .pin-bad{animation:pinshake .35s}
 @keyframes pinshake{25%{transform:translateX(-9px)}50%{transform:translateX(8px)}75%{transform:translateX(-5px)}}
 .danger{background:#5a1a22!important;color:#ffd8d3}
+.stat-select{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;gap:8px;font-weight:700;font-size:15px;margin:0}
+.stat-select select{width:100%;min-height:44px;font:inherit;font-weight:700;background:#ffffff14;color:var(--chalk);border:1px solid #ffffff44;border-radius:9px;padding:6px 8px;min-width:0}
+.stat-select select option{color:#141414;background:#fff}
+.stat-note{font-size:14.5px!important;color:var(--muted)}
+.err-row{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;border-top:1px solid #ffffff1f;padding-top:7px}
+.err-row>b{font-family:var(--display);font-weight:400;font-size:24px;color:var(--bad);font-variant-numeric:tabular-nums}
+.err-row strong{display:block;font-size:13.5px;color:var(--muted)}
+.err-row p{font-size:16px}.err-row small{color:var(--open);font-size:13.5px}
 </style>
 
 <canvas id="gl" aria-hidden="true"></canvas>
@@ -1976,7 +1984,7 @@ async function startMatch(lv){
   const my=++token;tweens.forEach(x=>x.res());tweens=[];
   try{speechSynthesis.cancel()}catch(e){}
   GL.mode='match';buildTeams();clearScene();bg=null;GL.showHero=false;if(GL.on){GL_setMode('match');GL.checkAt=clock+2400;GL.badChecks=0;GL_updateScreen();GL.camPos.set(70,70,150);GL.camLook.set(0,4,0)}
-  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,miss:[],log:[],list:pickSituations()};$('streak').hidden=true;
+  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,miss:[],missDetail:[],log:[],list:pickSituations()};$('streak').hidden=true;
   $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
   audio();startAmbience();updateScore();setBar(1);setDock('');show('play');
   const sel=slotOf();$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
@@ -2040,7 +2048,7 @@ async function resolveAction(c,a,ms,total,carrier,my){
   G.log.push(j.res==='good'?'good':j.res==='close'?'close':'bad');
   /* Missed moments come back in the next match */
   if(j.res!=='good'&&c.sit)seenSit.set(c.sit,-3);
-  if(j.res!=='good'&&c.sit){const idx=SITS.indexOf(c.sit);if(idx>=0)G.miss.push(idx)}
+  if(j.res!=='good'&&c.sit){const idx=SITS.indexOf(c.sit);if(idx>=0){G.miss.push(idx);G.missDetail.push({id:idx,late:j.res==='late'})}}
   if(a.kind!=='late'){G.rtSum+=ms;G.rtN++}
   $('streak').hidden=G.streak<2;$('streak').textContent=t(`Reeks ${G.streak}`,`Série ${G.streak}`);
   if(j.res==='good'){
@@ -2241,13 +2249,18 @@ function finish(){
 const todayKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function dayStreak(p){let n=0;const d=new Date();if(!p.days.includes(todayKey(d)))d.setDate(d.getDate()-1);while(p.days.includes(todayKey(d))){n++;d.setDate(d.getDate()-1)}return n}
 const progressKey=()=>'fts-progress-'+(setup.name||'').toLowerCase();
-const blankStats=()=>({since:todayKey(),matches:0,good:0,open:0,dicht:0,total:0,rtSum:0,rtN:0,posStats:{},history:[],miss:{}});
+const blankStats=()=>({since:todayKey(),matches:0,good:0,open:0,dicht:0,total:0,rtSum:0,rtN:0,posStats:{},history:[],miss:{},modes:{}});
+const blankMode=()=>({matches:0,wins:0,draws:0,losses:0,good:0,open:0,dicht:0,total:0,rtSum:0,rtN:0,miss:{}});
+const addResult=(m,us,them)=>{m.matches++;if(us>them)m.wins++;else if(us===them)m.draws++;else m.losses++};
 function loadProgress(){
   const v=store.get(progressKey(),null),p=Object.assign(blankProgress(),v&&typeof v==='object'?v:{});
   /* Older saves: copy what was already measured into the statistics */
   if(!p.stats){p.stats=Object.assign(blankStats(),{since:null,matches:p.matches,good:p.good,open:p.open,dicht:p.dicht,total:p.total||0,rtSum:p.rtSum||0,rtN:p.rtN||0,posStats:p.posStats||{},history:p.history||[]})}
   /* Saves from before the question counter existed could report over 100% */
-  const S=p.stats;S.total=Math.max(S.total||0,(S.matches||0)*ACTIONS);S.good=Math.min(S.good||0,S.total);
+  const S=p.stats;
+  /* Saves without modes: rebuild what the recent match list still knows */
+  if(!S.modes){S.modes={};(S.history||[]).forEach(h=>{const k=`${h.fmt}|${h.lv}|${h.pos}`,m=S.modes[k]||(S.modes[k]=blankMode());addResult(m,h.us,h.them);m.open+=h.open;m.dicht+=h.dicht;m.good+=h.open+h.dicht;m.total+=ACTIONS})}
+  S.total=Math.max(S.total||0,(S.matches||0)*ACTIONS);S.good=Math.min(S.good||0,S.total);
   Object.values(S.posStats||{}).forEach(q=>{q.tot=Math.max(q.tot||0,q.good||0)});
   return p;
 }
@@ -2271,8 +2284,11 @@ function recordMatch(starsWon){
   if(G.open===4)p.openP++;if(G.dicht===4)p.dichtP++;if(G.open===4&&G.dicht===4)p.perfect++;
   const S=p.stats,statKey=setup.fmt+'-'+slot.id,ps=Object.assign({tot:0,good:0},S.posStats[statKey]);ps.tot+=ACTIONS;ps.good+=G.open+G.dicht;S.posStats[statKey]=ps;
   S.matches++;S.good+=G.open+G.dicht;S.open+=G.open;S.dicht+=G.dicht;S.total+=ACTIONS;S.rtSum+=G.rtSum;S.rtN+=G.rtN;
-  S.history.push({fmt:setup.fmt,pos:slot.id,lv:G.lv,us:G.us,them:G.them,open:G.open,dicht:G.dicht,day:todayKey()});if(S.history.length>12)S.history.shift();
+  S.history.push({fmt:setup.fmt,pos:slot.id,lv:G.lv,us:G.us,them:G.them,open:G.open,dicht:G.dicht,day:todayKey()});if(S.history.length>80)S.history.shift();
   (G.miss||[]).forEach(id=>{S.miss[id]=(S.miss[id]||0)+1});
+  const modeKey=`${setup.fmt}|${G.lv}|${slot.id}`,M=S.modes[modeKey]||(S.modes[modeKey]=blankMode());
+  addResult(M,G.us,G.them);M.good+=G.open+G.dicht;M.open+=G.open;M.dicht+=G.dicht;M.total+=ACTIONS;M.rtSum+=G.rtSum;M.rtN+=G.rtN;
+  (G.missDetail||[]).forEach(q=>{const e=M.miss[q.id]||(M.miss[q.id]={n:0,late:0});e.n++;if(q.late)e.late++});
   addUnique(p.days,todayKey());if(p.days.length>90)p.days.shift();p.bestDays=Math.max(p.bestDays,dayStreak(p));
   const moves=G.skillsDone||[];p.skillCount+=moves.length;G.newSkills=[];moves.forEach(id=>{if(!p.skills.includes(id)){p.skills.push(id);G.newSkills.push(id)}});
   addUnique(p.roles,slot.role);addUnique(p.positions,setup.fmt+'-'+slot.id);addUnique(p.formats,setup.fmt);
@@ -2321,6 +2337,7 @@ function showNextAward(){
   $('awardGo').textContent=t('Hoera!','Super !');
   $('award').hidden=false;sfx.goal();speak(t(`Proficiat, ${setup.name}! Nieuwe beker: `,`Bravo, ${setup.name} ! Nouveau trophée : `)+p2(cup.n));
 }
+const statsFilter={fmt:'all',lv:'all',pos:'all'};
 function flashStatsDone(){const s=$('statsSub');s.textContent=t('Gewist.','Effacé.')+' '+s.textContent}
 function posName(key){const [f,id]=key.split('-'),sl=FORMATS[f]&&FORMATS[f].slots.find(x=>x.id===id);return sl?`${roleName(sl)} (${f})`:key}
 function renderStats(){
@@ -2328,22 +2345,45 @@ function renderStats(){
   $('statsTitle').textContent=t('Ouders en coach','Parents et coach');$('statsSub').textContent=setup.name+(p.since?' · '+t('sinds ','depuis ')+p.since.split('-').reverse().join('/'):'');
   const card=title=>{const c=document.createElement('div');c.className='stat-card';const h=document.createElement('h3');h.textContent=title;c.appendChild(h);box.appendChild(c);return c};
   const pct=(a,b)=>b?clamp(Math.round(a/b*100),0,100):0;
-  const a=card(t('Samenvatting','Résumé')),big=document.createElement('div');big.className='stat-big';
-  const rt=p.rtN?(p.rtSum/p.rtN/1000).toFixed(1).replace('.',lang==='fr'?',':','):'–';
-  [[p.matches,t('matchen','matchs')],[p.total?pct(p.good,p.total)+'%':'–',t('goede keuzes','bons choix')],[rt+(p.rtN?' s':''),t('gemiddelde reactie','réaction moyenne')]].forEach(([v,l])=>{const d=document.createElement('div'),b=document.createElement('b'),sp=document.createElement('span');b.textContent=v;sp.textContent=l;d.append(b,sp);big.appendChild(d)});a.appendChild(big);
-  /* What to work on */
-  const tips=card(t('Waar werken?','Sur quoi travailler ?')),tp=document.createElement('p');
-  if(!p.matches)tp.textContent=t('Speel eerst een paar matchen.','Jouez d’abord quelques matchs.');
-  else{const o=p.open/(p.open+p.dicht||1);tp.textContent=p.open===p.dicht?t('Open en dicht zijn in evenwicht. Blijf op alle plekken oefenen.','Ouvrir et fermer sont équilibrés. Continuez à tous les postes.'):o<.5?t('Open is moeilijker: vraag "waar is de vrije ruimte?" als jullie de bal hebben.','Ouvrir est plus difficile : demandez « où est l’espace libre ? » quand l’équipe a le ballon.'):t('Dicht is moeilijker: vraag "sta je tussen de bal en ons doel?" als zij de bal hebben.','Fermer est plus difficile : demandez « es-tu entre le ballon et notre but ? » quand l’adversaire a le ballon.')}
-  tips.appendChild(tp);
-  /* By position */
-  const keys=Object.keys(p.posStats);
-  if(keys.length){const c=card(t('Per plek','Par poste'));keys.sort((x,y)=>pct(p.posStats[y].good,p.posStats[y].tot)-pct(p.posStats[x].good,p.posStats[x].tot)).forEach(k=>{const v=pct(p.posStats[k].good,p.posStats[k].tot),r=document.createElement('div');r.className='pos-row';const n=document.createElement('span');n.textContent=posName(k);const bar=document.createElement('div');bar.className='bar';bar.innerHTML=`<i class="${v>=70?'high':v>=45?'mid':'low'}" style="width:${v}%"></i>`;const b=document.createElement('b');b.textContent=v+'%';r.append(n,bar,b);c.appendChild(r)})}
-  /* Last matches, drawn to a fixed 0 to 8 scale */
-  if(p.history.length){const c=card(t('Laatste matchen','Derniers matchs')),info=document.createElement('p');info.textContent=t('Goede keuzes per match, van 0 tot 8.','Bons choix par match, de 0 à 8.');c.appendChild(info);const hist=document.createElement('div');hist.className='hist';hist.setAttribute('role','img');hist.setAttribute('aria-label',p.history.map(h=>h.open+h.dicht).join(', '));p.history.forEach(h=>{const i=document.createElement('i');i.style.height=((h.open+h.dicht)/8*100)+'%';hist.appendChild(i)});c.appendChild(hist);const sc=document.createElement('div');sc.className='hist-scale';sc.innerHTML=`<span>${t('oudste','plus ancien')}</span><span>${t('nieuwste','plus récent')}</span>`;c.appendChild(sc)}
-  /* Moments he misses most */
-  const missed=Object.entries(p.miss||{}).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  if(missed.length){const c=card(t('Vaak fout','Erreurs fréquentes')),info=document.createElement('p');info.textContent=t('Hierover kan je samen praten:','Vous pouvez en parler ensemble :');c.appendChild(info);missed.forEach(([id,n])=>{if(!SITS[id])return;const l=document.createElement('p');l.textContent=`${n}× ${p2(SITS[id].tip)}`;c.appendChild(l)})}
+  /* Mode filters: only what he has really played */
+  const F=statsFilter,keys=Object.keys(p.modes||{}).map(k=>{const [f,l,q]=k.split('|');return{k,f,l,q,m:p.modes[k]}}),count=list=>list.reduce((n,x)=>n+x.m.matches,0);
+  if(F.fmt!=='all'&&!keys.some(x=>x.f===F.fmt))F.fmt='all';
+  if(F.lv!=='all'&&!keys.some(x=>x.l===F.lv&&(F.fmt==='all'||x.f===F.fmt)))F.lv='all';
+  if(F.pos!=='all'&&!keys.some(x=>x.f+'-'+x.q===F.pos&&(F.fmt==='all'||x.f===F.fmt)&&(F.lv==='all'||x.l===F.lv)))F.pos='all';
+  const fc=card(t('Kies een modus','Choisir un mode'));
+  const select=(id,lab,val,opts,on)=>{const w=document.createElement('label');w.className='stat-select';w.htmlFor=id;w.textContent=lab;const sel=document.createElement('select');sel.id=id;opts.forEach(([v,txt])=>{const o=document.createElement('option');o.value=v;o.textContent=txt;sel.appendChild(o)});sel.value=val;sel.onchange=()=>on(sel.value);w.appendChild(sel);fc.appendChild(w)};
+  const nTxt=n=>`${n} ${n===1?t('match','match'):t('matchen','matchs')}`;
+  const allTxt=n=>`${t('Alles','Tout')} (${nTxt(n)})`;
+  const fmts=[...new Set(keys.map(x=>x.f))].sort((a,b)=>a-b);
+  select('statFmt',t('Formaat','Format'),F.fmt,[['all',allTxt(count(keys))],...fmts.map(f=>[f,`${p2(FORMATS[f].name)} (${nTxt(count(keys.filter(x=>x.f===f)))})`])],v=>{F.fmt=v;renderStats()});
+  const inFmt=keys.filter(x=>F.fmt==='all'||x.f===F.fmt),lvls=[...new Set(inFmt.map(x=>x.l))].sort();
+  select('statLv',t('Niveau','Niveau'),F.lv,[['all',allTxt(count(inFmt))],...lvls.map(l=>[l,`${Number(l)+1}. ${p2(LEVELS[l].n)} (${nTxt(count(inFmt.filter(x=>x.l===l)))})`])],v=>{F.lv=v;renderStats()});
+  const inLv=inFmt.filter(x=>F.lv==='all'||x.l===F.lv),posKeys=[...new Set(inLv.map(x=>x.f+'-'+x.q))];
+  select('statPos',t('Plek','Poste'),F.pos,[['all',allTxt(count(inLv))],...posKeys.map(q=>[q,`${posName(q)} (${nTxt(count(inLv.filter(x=>x.f+'-'+x.q===q)))})`])],v=>{F.pos=v;renderStats()});
+  const chosen=inLv.filter(x=>F.pos==='all'||x.f+'-'+x.q===F.pos),isAll=F.fmt==='all'&&F.lv==='all'&&F.pos==='all';
+  /* Figures for the chosen mode */
+  const V=blankMode();chosen.forEach(x=>{['matches','wins','draws','losses','good','open','dicht','total','rtSum','rtN'].forEach(n=>{V[n]+=x.m[n]||0});Object.entries(x.m.miss||{}).forEach(([id,e])=>{const o=V.miss[id]||(V.miss[id]={n:0,late:0});o.n+=e.n;o.late+=e.late})});
+  const older=isAll?Math.max(0,p.matches-V.matches):0;
+  if(older){V.matches=p.matches;V.good=p.good;V.total=p.total;V.open=p.open;V.dicht=p.dicht;V.rtSum=p.rtSum;V.rtN=p.rtN}
+  const a=card(t('Resultaat','Résultat')),big=document.createElement('div');big.className='stat-big';
+  const rt=V.rtN?(V.rtSum/V.rtN/1000).toFixed(1).replace('.',lang==='fr'?',':','):'–';
+  [[V.matches,V.matches===1?t('match','match'):t('matchen','matchs')],[V.total?pct(V.good,V.total)+'%':'–',t('goede keuzes','bons choix')],[rt+(V.rtN?' s':''),t('gemiddelde reactie','réaction moyenne')]].forEach(([v,l])=>{const d=document.createElement('div'),b=document.createElement('b'),sp=document.createElement('span');b.textContent=v;sp.textContent=l;d.append(b,sp);big.appendChild(d)});a.appendChild(big);
+  if(chosen.length){const r=document.createElement('p');r.textContent=t(`${V.wins} gewonnen, ${V.draws} gelijk, ${V.losses} verloren`,`${V.wins} gagné${V.wins>1?'s':''}, ${V.draws} nul${V.draws>1?'s':''}, ${V.losses} perdu${V.losses>1?'s':''}`);if(!older)a.appendChild(r)}
+  if(older){const o=document.createElement('p');o.className='stat-note';o.textContent=t(`${older} oudere matchen hebben geen detail per modus.`,`${older} matchs plus anciens n’ont pas de détail par mode.`);a.appendChild(o)}
+  /* Open and closed side by side for this mode */
+  if(V.total){const half=V.total/2,rows=[[t('Open','Ouvrir'),V.open,half],[t('Dicht','Fermer'),V.dicht,half]],c=card(t('Open en dicht','Ouvrir et fermer'));rows.forEach(([n,g,tt])=>{const v=pct(g,tt),r=document.createElement('div');r.className='pos-row';const sp=document.createElement('span');sp.textContent=n;const bar=document.createElement('div');bar.className='bar';bar.innerHTML=`<i class="${v>=70?'high':v>=45?'mid':'low'}" style="width:${v}%"></i>`;const b=document.createElement('b');b.textContent=v+'%';r.append(sp,bar,b);c.appendChild(r)})}
+  /* Errors made in this mode */
+  const ec=card(t('Fouten in deze modus','Erreurs dans ce mode'));
+  const list=isAll&&older?Object.entries(p.miss||{}).map(([id,n])=>[id,{n,late:0}]):Object.entries(V.miss);
+  list.sort((x,y)=>y[1].n-x[1].n);
+  if(!list.length){const e=document.createElement('p');e.textContent=V.matches?t('Geen fouten in deze modus. Sterk!','Aucune erreur dans ce mode. Bravo !'):t('Nog geen match in deze modus.','Pas encore de match dans ce mode.');ec.appendChild(e)}
+  else{const e=document.createElement('p');e.className='stat-note';const total=list.reduce((n,x)=>n+x[1].n,0);e.textContent=t(`${total} fouten in ${list.length} verschillende situaties. De juiste uitleg staat erbij.`,`${total} erreurs dans ${list.length} situations différentes. La bonne explication est indiquée.`);ec.appendChild(e);
+    list.slice(0,8).forEach(([id,q])=>{const sit=SITS[id];if(!sit)return;const w=document.createElement('div');w.className='err-row';const n=document.createElement('b');n.textContent=q.n+'×';const tx=document.createElement('div');const h=document.createElement('strong');h.textContent=sit.s==='open'?t('Wij hebben de bal','On a le ballon'):t('Zij hebben de bal','Ils ont le ballon');const b=document.createElement('p');b.textContent=p2(sit.tip);tx.append(h,b);if(q.late){const l=document.createElement('small');l.textContent=t(`waarvan ${q.late} keer te laat`,`dont ${q.late} fois trop tard`);tx.appendChild(l)}w.append(n,tx);ec.appendChild(w)});
+    const open=list.filter(([id])=>SITS[id]&&SITS[id].s==='open').reduce((n,x)=>n+x[1].n,0),closed=list.reduce((n,x)=>n+x[1].n,0)-open;
+    const adv=document.createElement('p');adv.className='note';adv.textContent=open===closed?t('Vraag samen: wie heeft de bal?','Demandez ensemble : qui a le ballon ?'):open>closed?t('Vraag samen: waar is de vrije ruimte?','Demandez ensemble : où est l’espace libre ?'):t('Vraag samen: sta je tussen de bal en ons doel?','Demandez ensemble : es-tu entre le ballon et notre but ?');ec.appendChild(adv)}
+  /* Last matches in this mode, on a fixed 0 to 8 scale */
+  const hs=(p.history||[]).filter(h=>(F.fmt==='all'||String(h.fmt)===F.fmt)&&(F.lv==='all'||String(h.lv)===F.lv)&&(F.pos==='all'||h.fmt+'-'+h.pos===F.pos)).slice(-12);
+  if(hs.length){const c=card(t('Laatste matchen','Derniers matchs')),info=document.createElement('p');info.textContent=t('Goede keuzes per match, van 0 tot 8.','Bons choix par match, de 0 à 8.');c.appendChild(info);const hist=document.createElement('div');hist.className='hist';hist.setAttribute('role','img');hist.setAttribute('aria-label',hs.map(h=>h.open+h.dicht).join(', '));hs.forEach(h=>{const i=document.createElement('i');i.style.height=((h.open+h.dicht)/8*100)+'%';hist.appendChild(i)});c.appendChild(hist);const sc=document.createElement('div');sc.className='hist-scale';sc.innerHTML=`<span>${t('oudste','plus ancien')}</span><span>${t('nieuwste','plus récent')}</span>`;c.appendChild(sc)}
   /* Backup */
   const bk=card(t('Bewaarcode','Code de sauvegarde')),bp=document.createElement('p');bp.textContent=t('Kopieer deze code om de bekers op een ander toestel terug te zetten.','Copiez ce code pour remettre les trophées sur un autre appareil.');bk.appendChild(bp);
   const code=document.createElement('textarea');code.id='backupCode';code.setAttribute('aria-label',t('Bewaarcode','Code de sauvegarde'));
@@ -2359,7 +2399,7 @@ function renderStats(){
   const rzBtn=document.createElement('button'),allBtn=document.createElement('button'),rzRow=document.createElement('div');rzRow.className='small-actions';rzBtn.id='resetStats';allBtn.id='resetAll';allBtn.className='danger';rzBtn.textContent=t('Statistieken wissen','Effacer les statistiques');allBtn.textContent=t('Alles wissen, ook bekers','Tout effacer, trophées aussi');rzRow.append(rzBtn,allBtn);rz.appendChild(rzRow);
   const rzMsg=document.createElement('p');rzMsg.className='note';rzMsg.setAttribute('role','status');rz.appendChild(rzMsg);
   let armed=null;
-  rzBtn.onclick=()=>{if(armed!=='stats'){armed='stats';rzMsg.textContent=t('Zeker? Tik nog een keer. De bekers blijven.','Sûr ? Touchez encore une fois. Les trophées restent.');return}const x=loadProgress();x.stats=blankStats();store.set(progressKey(),x);renderStats();$('statsBody').querySelector('.stat-card').scrollIntoView();flashStatsDone()};
+  rzBtn.onclick=()=>{if(armed!=='stats'){armed='stats';rzMsg.textContent=t('Zeker? Tik nog een keer. De bekers blijven.','Sûr ? Touchez encore une fois. Les trophées restent.');return}const x=loadProgress();x.stats=blankStats();store.set(progressKey(),x);statsFilter.fmt=statsFilter.lv=statsFilter.pos='all';renderStats();$('statsBody').querySelector('.stat-card').scrollIntoView();flashStatsDone()};
   allBtn.onclick=()=>{if(armed!=='all'){armed='all';rzMsg.textContent=t('Zeker? Tik nog een keer. Ook alle bekers worden gewist.','Sûr ? Touchez encore une fois. Tous les trophées seront aussi effacés.');return}store.set(progressKey(),blankProgress());renderStats();flashStatsDone()};
   const pv=card(t('Privacy','Vie privée')),pp=document.createElement('p');pp.textContent=t('De naam en de bekers blijven alleen op dit toestel. Er is geen account, geen reclame en er wordt niets verstuurd.','Le prénom et les trophées restent uniquement sur cet appareil. Il n’y a ni compte, ni publicité, et rien n’est envoyé.');pv.appendChild(pp);
 }
