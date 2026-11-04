@@ -2264,6 +2264,9 @@ function loadProgress(){
   const v=store.get(progressKey(),null),p=Object.assign(blankProgress(),v&&typeof v==='object'?v:{});
   /* Older saves: copy what was already measured into the statistics */
   if(!p.stats){p.stats=Object.assign(blankStats(),{since:null,matches:p.matches,good:p.good,open:p.open,dicht:p.dicht,total:p.total||0,rtSum:p.rtSum||0,rtN:p.rtN||0,posStats:p.posStats||{},history:p.history||[]})}
+  /* Saves from before the question counter existed could report over 100% */
+  const S=p.stats;S.total=Math.max(S.total||0,(S.matches||0)*ACTIONS);S.good=Math.min(S.good||0,S.total);
+  Object.values(S.posStats||{}).forEach(q=>{q.tot=Math.max(q.tot||0,q.good||0)});
   return p;
 }
 const addUnique=(list,v)=>{if(!list.includes(v))list.push(v)};
@@ -2342,7 +2345,7 @@ function renderStats(){
   const P_=loadProgress(),p=P_.stats,box=$('statsBody');box.innerHTML='';
   $('statsTitle').textContent=t('Ouders en coach','Parents et coach');$('statsSub').textContent=setup.name+(p.since?' · '+t('sinds ','depuis ')+p.since.split('-').reverse().join('/'):'');
   const card=title=>{const c=document.createElement('div');c.className='stat-card';const h=document.createElement('h3');h.textContent=title;c.appendChild(h);box.appendChild(c);return c};
-  const pct=(a,b)=>b?Math.round(a/b*100):0;
+  const pct=(a,b)=>b?clamp(Math.round(a/b*100),0,100):0;
   const a=card(t('Samenvatting','Résumé')),big=document.createElement('div');big.className='stat-big';
   const rt=p.rtN?(p.rtSum/p.rtN/1000).toFixed(1).replace('.',lang==='fr'?',':','):'–';
   [[p.matches,t('matchen','matchs')],[p.total?pct(p.good,p.total)+'%':'–',t('goede keuzes','bons choix')],[rt+(p.rtN?' s':''),t('gemiddelde reactie','réaction moyenne')]].forEach(([v,l])=>{const d=document.createElement('div'),b=document.createElement('b'),sp=document.createElement('span');b.textContent=v;sp.textContent=l;d.append(b,sp);big.appendChild(d)});a.appendChild(big);
