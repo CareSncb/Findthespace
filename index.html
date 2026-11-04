@@ -1425,6 +1425,8 @@ function GL_health(){
     if(GL.badChecks>=3){try{localStorage.setItem(GFX_KEY,String(gfxLevel()+1))}catch(e){}GL.checkAt=0;if(!window.__noReload)location.reload();else GL.healed=true}
   }else{GL.badChecks=0;GL.checkAt=0}
 }
+/* A child's ball is about 15% of his height across; slightly larger here so it stays easy to follow */
+const ballRadius=()=>PLAYER_H*FORMATS[setup.fmt].size*.083;
 const JUGGLE_MS=860,JUGGLE_LEAD=55,JUGGLE_H=8.5;
 function heroJuggle(ts,dt,inMatch){
   const h=GL.hero;if(!h||inMatch||ball.owner||!GL.showHero||!h.model)return;
@@ -1433,8 +1435,8 @@ function heroJuggle(ts,dt,inMatch){
   const foot=(GL.footV||(GL.footV=new T.Vector3()));h.model.limbs[side].ankle.getWorldPosition(foot);
   if(h.act){ball.x+=((h.x+1.6)-ball.x)*Math.min(1,dt*6);ball.y+=((h.y-3)-ball.y)*Math.min(1,dt*6);ball.z=0;return}
   /* The ball is always travelling to the foot that plays it next */
-  const fx=foot.x+50,fy=foot.z+70+Math.cos(h.model.yaw)*1.5,k=1-Math.exp(-dt*12);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
-  const tq=((ts%P)+P)%P/P,par=4*tq*(1-tq),bs=2.15*Math.max(FORMATS[setup.fmt].size,.9),contact=Math.max(0,foot.y+.55-.0);
+  const fx=foot.x+50,fy=foot.z+70+Math.cos(h.model.yaw)*.9,k=1-Math.exp(-dt*12);ball.x+=(fx-ball.x)*k;ball.y+=(fy-ball.y)*k;
+  const tq=((ts%P)+P)%P/P,par=4*tq*(1-tq),bs=ballRadius(),contact=Math.max(0,foot.y+.4);
   ball.z=contact*(1-par)+par*JUGGLE_H;
   GL.juggleGap=Math.abs((bs+ball.z-bs)-(foot.y+.55));
 }
@@ -1462,7 +1464,7 @@ function GL_render(ts){
   all.forEach(a=>animatePlayer(a,dt,ts,inMatch));
   fxUpdate(dt,ts);
   /* Ball */
-  const bs=2.15*Math.max(FORMATS[setup.fmt].size,.9),bm=GL.ballMesh;
+  const bs=ballRadius(),bm=GL.ballMesh;
   heroJuggle(ts,dt,inMatch);
   const bdx=ball.x-(GL.bx??ball.x),bdz=ball.y-(GL.bz??ball.y),bdist=Math.hypot(bdx,bdz);GL.bx=ball.x;GL.bz=ball.y;
   bm.scale.set(bs,bs,bs);bm.position.set(ball.x-50,bs+ball.z,ball.y-70);
