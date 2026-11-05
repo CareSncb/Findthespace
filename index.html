@@ -582,7 +582,8 @@ const D={
  LINE:['Op je lijn lijkt het doel groot. Kom voor!','Sur ta ligne, le but paraît grand. Avance !'],
  OUT:['Te ver uit je doel. De bal kan over jou.','Trop loin de ton but. Le ballon peut passer au-dessus.'],
  SIDE:['Daar blijft ons doel open.','Là, notre but reste ouvert.'],
- HIDE:['Hier kan niemand je aanspelen.','Ici, personne ne peut te faire la passe.']
+ HIDE:['Hier kan niemand je aanspelen.','Ici, personne ne peut te faire la passe.'],
+ NARROW:['Te ver naar binnen. Blijf breed: zo blijft het veld groot.','Trop à l’intérieur. Reste large : le terrain reste grand.']
 };
 /* Situations are written for a player on the left. A right-sided player sees them mirrored. */
 const S=(role,s,ball,ideal,tip,d1,k1,d2,k2,o={})=>({role,s,ball,ideal,tip,d:[[d1,D[k1]],[d2,D[k2]]],...o});
@@ -609,7 +610,7 @@ const SITS=[
  S('FB','open',[50,133],[8,104],['De keeper heeft de bal. Ga breed, tot aan de zijlijn.','Le gardien a le ballon. Écarte-toi jusqu’à la ligne de touche.'],[40,122],'CLOSE',[10,58],'UP'),
  S('FB','open',[50,112],[8,90],['Ga hoog en breed. Dan is de pass veilig.','Monte et écarte-toi. La passe est plus sûre.'],[38,114],'CLOSE',[45,84],'BLOCK'),
  S('FB','open',[12,50],[24,70],['Kom onder de bal. Dan heeft je maat hulp.','Viens derrière le ballon. Ton équipier a de l’aide.'],[12,104],'BACK',[12,38],'BEHIND'),
- S('FB','open',[85,70],[12,74],['Bal aan de overkant? Blijf breed voor de lange pass.','Ballon de l’autre côté ? Reste large pour la longue passe.'],[48,82],'WIDE',[12,122],'BACK'),
+ S('FB','open',[85,70],[12,74],['Bal aan de overkant? Blijf breed voor de lange pass.','Ballon de l’autre côté ? Reste large pour la longue passe.'],[48,82],'NARROW',[12,122],'BACK'),
  S('FB','dicht',[15,84],[18,108],['Bal op jouw kant. Sta tussen de bal en ons doel.','Ballon de ton côté. Place-toi entre le ballon et notre but.'],[15,70],'BEHIND',[52,110],'FAR'),
  S('FB','dicht',[85,90],[32,112],['Bal aan de overkant? Schuif naar binnen.','Ballon de l’autre côté ? Rentre vers le milieu.'],[8,100],'WIDE',[76,84],'ALL'),
  S('FB','dicht',[50,80],[26,108],['Bal in het midden. Blijf dicht bij je verdediger.','Ballon au milieu. Reste près de ton défenseur.'],[8,84],'WIDE',[50,70],'ALL'),
@@ -692,6 +693,22 @@ const SITS=[
  S('GK','dicht',[50,110],[50,124],['Hij is dichtbij. Kom een stap uit en wacht op het juiste moment.','Il est tout près. Fais un pas en avant et attends le bon moment.'],[50,137],'LINE',[28,124],'SIDE',{only5:true,press:true}),
  S('GK','dicht',[50,60],[50,108],['Achter onze laatste man ligt ruimte. Die bal is voor jou.','Derrière notre dernier joueur, il y a de l’espace. Ce ballon est pour toi.'],[50,137],'LINE',[50,72],'OUT',{only5:true})
 ];
+/* Other good answers. Football often has more than one right spot, so each moment
+   lists them. A spot only counts in a match when no teammate stands on it and,
+   with the ball, no opponent blocks the pass. Central players also get the mirror
+   of the best spot when the ball is in the middle (see compose). */
+const ALTS={
+ 'GK|open|30,112':[[30,126]],'GK|open|50,72':[[50,118]],'GK|open|16,42':[[50,108]],'GK|open|20,116':[[50,124]],'GK|open|14,88':[[46,118]],'GK|open|50,100':[[36,124],[64,124]],'GK|open|12,100':[[40,124]],'GK|open|50,40':[[50,106]],
+ 'GK|dicht|50,50':[[50,102]],'GK|dicht|50,76':[[50,104]],
+ 'CB|open|56,70':[[50,98]],'CB|open|14,84':[[46,98]],'CB|open|50,34':[[50,88]],'CB|open|78,100':[[60,102]],'CB|open|30,60':[[50,92]],'CB|open|12,48':[[50,88]],
+ 'CB|dicht|85,94':[[62,112]],
+ 'FB|open|50,133':[[16,92]],'FB|open|50,112':[[14,76]],'FB|open|12,50':[[34,60]],'FB|open|85,70':[[20,90]],'FB|open|50,84':[[12,78]],'FB|open|34,116':[[14,88]],
+ 'FB|dicht|60,104':[[46,112]],
+ 'CM|open|40,112':[[22,92]],'CM|open|12,70':[[30,62],[28,90]],'CM|open|50,42':[[50,58]],'CM|open|56,86':[[78,64]],'CM|open|85,78':[[68,64]],
+ 'W|open|46,110':[[12,90]],'W|open|50,75':[[10,60]],'W|open|85,50':[[40,40],[12,34]],'W|open|10,92':[[40,70],[10,62]],'W|open|14,112':[[24,90]],'W|open|50,40':[[14,40]],'W|open|86,64':[[30,60]],'W|open|50,42':[[24,52]],
+ 'ST|open|50,112':[[34,54],[66,54],[50,38]],'ST|open|12,60':[[30,24],[60,26]],'ST|open|88,46':[[40,24],[56,44]],'ST|open|50,133':[[50,46],[34,62],[66,62]],'ST|open|22,38':[[60,24]],'ST|open|14,72':[[28,40]],'ST|open|10,30':[[60,22],[36,36]]
+};
+const altsOf=x=>ALTS[`${x.role}|${x.s}|${x.ball[0]},${x.ball[1]}`]||[];
 const KITS=[
  {id:'red',n:['Rood','Rouge'],main:'#e0212f',hi:'#ff5c66',stripe:'rgba(255,255,255,.95)',rgb:'255,70,85',need:0},
  {id:'black',n:['Zwart','Noir'],main:'#1a1d27',hi:'#454b5e',stripe:'#ffc928',rgb:'255,201,40',need:2},
@@ -1585,6 +1602,7 @@ function drawCoachMarks(){
     c.fillStyle=col;c.strokeStyle='#10131b';c.lineWidth=2;c.beginPath();c.moveTo(B.x,B.y);c.lineTo(B.x-Math.cos(an-.45)*20,B.y-Math.sin(an-.45)*20);c.lineTo(B.x-Math.cos(an+.45)*20,B.y-Math.sin(an+.45)*20);c.closePath();c.fill();c.stroke()};
   if(k.carrier){const a=k.carrier,o=proj(a.x,a.y),pul=reduced?0:Math.sin(clock/150)*1.5;groundEllipse(a.x,a.y,12+pul,'rgba(255,227,77,.22)','#ffe34d',3);label(k.carrierText,o.x,o.y+Math.max(18,o.s*6),'#ffe34d',1)}
   if(k.mine){const m=k.mine,o=proj(m.x,m.y);groundEllipse(m.x,m.y,8,'rgba(255,110,90,.35)','#ff8d7d',3);const e=o.s*3;c.strokeStyle='#ff8d7d';c.lineWidth=4;c.beginPath();c.moveTo(o.x-e,o.y-e*.6);c.lineTo(o.x+e,o.y+e*.6);c.moveTo(o.x+e,o.y-e*.6);c.lineTo(o.x-e,o.y+e*.6);c.stroke();label(k.mineText,o.x,o.y-Math.max(30,o.s*15),'#ff8d7d',-1)}
+  (k.also||[]).forEach(b=>{const o=proj(b.x,b.y);groundEllipse(b.x,b.y,7,'rgba(116,224,138,.2)','#c9f9d4',2);label(k.alsoText,o.x,o.y-Math.max(26,o.s*11),'#a9efb8',-1)});
   if(k.best){const b=k.best,o=proj(b.x,b.y);groundEllipse(b.x,b.y,8,'rgba(116,224,138,.42)','#c9f9d4',3);label(k.bestText,o.x,o.y-Math.max(30,o.s*13),'#74e08a',-1)}
   if(k.goalLine)arrow(k.goalLine[0],k.goalLine[1],'#ff8d7d');
   if(k.lane)arrow(k.lane[0],k.lane[1],'#74e08a');
@@ -1689,6 +1707,8 @@ function compose(sit,slot){
   const ball0=keeperBall?MIRROR(sit.ball,flip):nudge(MIRROR(sit.ball,flip));
   let idealSrc=(setup.fmt===11&&sit.i11)?sit.i11:sit.ideal;
   const ideal=nudge(MIRROR(idealSrc,flip));
+  const mirrorAlt=slot.x===50&&Math.abs(sit.ball[0]-50)<=8&&!sit.f&&!sit.mates&&Math.abs(idealSrc[0]-50)>=6;
+  const altSpots=[...(mirrorAlt?[{p:[100-idealSrc[0],idealSrc[1]],mirror:true}]:[]),...altsOf(sit).map(p=>({p,mirror:false}))].map(a=>{const q=nudge(MIRROR(a.p,flip));return{x:q[0],y:q[1],mirror:a.mirror}});
   const decoys=sit.d.map(([p,txt])=>{const q=nudge(MIRROR(p,flip));return{x:q[0],y:q[1],tip:txt,block:txt===D.BLOCK}});
   const forced=(sit.f||[]).map(p=>nudge(MIRROR(p,flip)));
   decoys.filter(d=>d.block).forEach(d=>forced.push([d.x,d.y]));
@@ -1715,18 +1735,19 @@ function compose(sit,slot){
   const fixedUs=new Set([0,meIdx,...fixedMates]);if(isOpen)fixedUs.add(carrier);if(presser>=0)fixedUs.add(presser);
   const everyone=[...pos.us.map((o,i)=>({o,fixed:fixedUs.has(i)})),...pos.them.map((o,i)=>({o,fixed:i===0||fixedThem.has(i)}))];
   const myO=pos.us[meIdx];everyone.forEach(e=>{if(e.o===myO)e.skip=true});
-  const lane=isOpen?{a:{x:bx,y:by},b:idealP}:null;
+  const lane=isOpen?{a:{x:bx,y:by},b:idealP}:null,lanes=isOpen?[idealP,...altSpots].map(q=>({a:{x:bx,y:by},b:q})):[];
   const minD=f.players===11?9:11;
   for(let it=0;it<10;it++){
     everyone.forEach((e,i)=>{
       if(e.skip||e.fixed)return;
       const d0=Math.hypot(e.o.x-idealP.x,e.o.y-idealP.y);
       if(d0<15){const v=d0||1;e.o.x+=(e.o.x-idealP.x)/v*(15-d0);e.o.y+=(e.o.y-idealP.y)/v*(15-d0)}
-      if(lane&&i>=pos.us.length){
+      altSpots.forEach(q=>{const da=Math.hypot(e.o.x-q.x,e.o.y-q.y);if(da<11){const v=da||1;e.o.x+=(e.o.x-q.x)/v*(11-da);e.o.y+=(e.o.y-q.y)/v*(11-da)}});
+      if(lanes.length&&i>=pos.us.length)lanes.forEach(lane=>{
         const ax=lane.b.x-lane.a.x,ay=lane.b.y-lane.a.y,L=ax*ax+ay*ay||1,u=clamp(((e.o.x-lane.a.x)*ax+(e.o.y-lane.a.y)*ay)/L,.05,.95);
         const qx=lane.a.x+ax*u,qy=lane.a.y+ay*u,d=Math.hypot(e.o.x-qx,e.o.y-qy);
         if(d<8){const v=d||1;const nx=d?(e.o.x-qx)/v:-ay/Math.sqrt(L),ny=d?(e.o.y-qy)/v:ax/Math.sqrt(L);e.o.x+=nx*(8-d);e.o.y+=ny*(8-d)}
-      }
+      });
       everyone.forEach((q,j)=>{if(i===j||q.skip)return;const dx=e.o.x-q.o.x,dy=e.o.y-q.o.y,dd=Math.hypot(dx,dy);if(dd<minD&&dd>0){e.o.x+=dx/dd*(minD-dd)*.5;e.o.y+=dy/dd*(minD-dd)*.5}});
       e.o.x=clamp(e.o.x,5,95);e.o.y=clamp(e.o.y,10,130);
     });
@@ -1737,7 +1758,14 @@ function compose(sit,slot){
   const dS=Math.hypot(sx-ideal[0],sy-ideal[1]);
   if(dS<minStart){const v=dS||1,nx=dS?(sx-ideal[0])/v:0,ny=dS?(sy-ideal[1])/v:1;sx=clamp(ideal[0]+nx*minStart,6,94);sy=clamp(ideal[1]+ny*minStart,10,136)}
   pos.us[meIdx]={x:sx,y:sy};
-  return{s:sit.s,ball:ball0,ideal:idealP,tip:sit.tip,decoys,pos,carrier,isOpen,meIdx,presser,press:!!sit.press,role:slot.role};
+  /* An extra spot only counts if it really works in this picture */
+  const alts=[],taken=[];
+  altSpots.forEach(q=>{
+    const mate=pos.us.some((o,i)=>i!==meIdx&&!(isOpen&&i===carrier)&&Math.hypot(o.x-q.x,o.y-q.y)<9);
+    const blocked=isOpen&&pos.them.some((o,i)=>{if(i===0)return false;const ax=q.x-bx,ay=q.y-by,L=ax*ax+ay*ay||1,u=clamp(((o.x-bx)*ax+(o.y-by)*ay)/L,.08,1);return Math.hypot(o.x-(bx+ax*u),o.y-(by+ay*u))<6});
+    if(mate)taken.push({x:q.x,y:q.y,tip:D.SAME});else if(blocked)taken.push({x:q.x,y:q.y,tip:D.BLOCK});else alts.push(q);
+  });
+  return{s:sit.s,ball:ball0,ideal:idealP,alts,taken,tip:sit.tip,decoys,pos,carrier,isOpen,meIdx,presser,press:!!sit.press,role:slot.role};
 }
 function pickSituations(){
   const slot=FORMATS[setup.fmt].slots.find(s=>s.id===setup.pos);
@@ -2119,11 +2147,14 @@ function judge(c,a){
   if(a.kind==='late')return{res:'late',spot:null,tip:c.tip};
   if(a.kind==='btn'){const right=a.v===c.s;return right?{res:'good',spot:c.ideal,tip:c.tip}:{res:'wrong',spot:{x:c.decoys[0].x,y:c.decoys[0].y},tip:c.isOpen?['Wij hebben de bal. Dus OPEN!','On a le ballon. Donc OUVRIR !']:['Zij hebben de bal. Dus DICHT!','Ils ont le ballon. Donc FERMER !']}}
   if(a.kind==='ring')return a.ring.good?{res:'good',spot:c.ideal,tip:c.tip}:{res:'wrong',spot:{x:a.ring.x,y:a.ring.y},tip:a.ring.tip};
-  const p={x:a.x,y:a.y},d=dist(p,c.ideal);
-  if(d<=good)return{res:'good',spot:p,tip:c.tip};
-  if(d<=close)return{res:'close',spot:p,tip:c.tip};
-  let near=null,best=18;c.decoys.forEach(x=>{const v=dist(p,x);if(v<best){best=v;near=x.tip}});
-  return{res:'wrong',spot:p,tip:near||(c.isOpen?['Zoek meer ruimte, ver van de bal.','Cherche plus d’espace, loin du ballon.']:['Kom terug. Sta tussen de bal en ons doel.','Reviens. Place-toi entre le ballon et notre but.'])};
+  const p={x:a.x,y:a.y};
+  /* Measure against every good answer and keep the nearest */
+  let sol=c.ideal,d=dist(p,c.ideal);(c.alts||[]).forEach(q=>{const v=dist(p,q);if(v<d){d=v;sol=q}});
+  const other=sol!==c.ideal&&!sol.mirror;
+  if(d<=good)return{res:'good',spot:p,best:sol,tip:other?(c.isOpen?['Ook goed! Ook hier ben je vrij en kan je de bal krijgen.','Aussi bon ! Ici aussi tu es libre et tu peux recevoir le ballon.']:['Ook goed! Ook hier help je ons doel beschermen.','Aussi bon ! Ici aussi tu aides à protéger notre but.']):c.tip};
+  if(d<=close)return{res:'close',spot:p,best:sol,tip:c.tip};
+  let near=null,best=18;(c.taken||[]).forEach(x=>{const v=dist(p,x);if(v<best){best=v;near=x.tip}});c.decoys.forEach(x=>{const v=dist(p,x);if(v<best){best=v;near=x.tip}});
+  return{res:'wrong',spot:p,best:sol,tip:near||(c.isOpen?['Zoek meer ruimte, ver van de bal.','Cherche plus d’espace, loin du ballon.']:['Kom terug. Sta tussen de bal en ons doel.','Reviens. Place-toi entre le ballon et notre but.'])};
 }
 async function resolveAction(c,a,ms,total,carrier,my){
   const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;
@@ -2148,12 +2179,12 @@ async function resolveAction(c,a,ms,total,carrier,my){
     if(isOpen){G.open++;const scored=await sceneGoal(carrier,my);if(!alive())return;title=scored?rnd([t(`Goal van ${setup.name}!`,`But de ${setup.name} !`),t('Amai, goal!','Waouh, but !')]):rnd([t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),t('Schoon open!','Belle ouverture !')])}
     else{G.dicht++;await sceneWin(my);if(!alive())return;title=rnd([t('Bal gepakt!','Ballon récupéré !'),t('Goed dicht!','Bien fermé !'),t(`Sterk, ${setup.name}!`,`Bravo, ${setup.name} !`)])}
   }else if(j.res==='close'){
-    kind='close';G.pts+=1;title=t('Bijna!','Presque !');view.ghost=c.ideal;
+    kind='close';G.pts+=1;title=t('Bijna!','Presque !');view.ghost=j.best||c.ideal;
     if(isOpen)await scenePass(me,my);else await sceneKeeper(carrier,my);if(!alive())return;
   }else{
     kind='bad';title=j.res==='late'?t('Te laat!','Trop tard !'):(isOpen?t('Bal kwijt!','Ballon perdu !'):t('Tegengoal!','But encaissé !'));
     if(isOpen)await sceneLost(carrier,my);else await sceneAgainst(carrier,my);if(!alive())return;
-    view.ghost=c.ideal;
+    view.ghost=j.best||c.ideal;
   }
   G.demo=kind==='good'?null:{c,j,title,carrier,snap,mine};
   if(kind==='bad'){await coachSession(G.demo,my);if(!alive())return;view={};G.demo=null;return}
@@ -2276,6 +2307,7 @@ function coachSession(d,my){
   return new Promise(res=>{
     const {c,j,title,carrier,snap,mine}=d,run=++coachRun,goal={x:50,y:133};
     const bPos={x:c.ball[0],y:c.ball[1]},isOpen=c.isOpen,alive=()=>my===token&&run===coachRun;
+    const spot=j.best||c.ideal,also=[c.ideal,...(c.alts||[])].filter(q=>q!==spot),alsoNote=also.length?' '+t('Ook de plek met OOK GOED werkt.','La place marquée AUSSI BON marche aussi.'):'',alsoText=t('OOK GOED','AUSSI BON');
     const who=isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.');
     const plan=isOpen?t('Dus spelen we OPEN: maak het veld groot.','Donc on OUVRE : rends le terrain grand.'):t('Dus spelen we DICHT: maak het veld klein.','Donc on FERME : rends le terrain petit.');
     const late=j.res==='late',close=j.res==='close';
@@ -2285,14 +2317,14 @@ function coachSession(d,my){
        view={coach:{carrier,carrierText:t('BAL','BALLON')}};ball.from=ball.to=null;ball.z=0;ball.fall=0;ball.owner=null;
        snap.forEach(q=>{tween(q.a,{x:q.x,y:q.y},600,'run')});tween(ball,{x:bPos.x,y:bPos.y},600,'out');
        await wait(620);if(!alive())return;ball.owner=carrier}},
-     {head:t('Hier stond jij','Tu étais ici'),text:`${reason} ${directionHint(mine,c.ideal)}`,enter:async()=>{
+     {head:t('Hier stond jij','Tu étais ici'),text:`${reason} ${directionHint(mine,spot)}`,enter:async()=>{
        view={coach:{carrier,carrierText:t('BAL','BALLON'),mine,mineText:t('JIJ','TOI')}};
        tween(me,{x:mine.x,y:mine.y},350,'run')}},
-     {head:t('Hier is het beter','C’est mieux ici'),text:`${p2(c.tip)} ${isOpen?t('De groene pijl is de weg van de bal naar jou.','La flèche verte est le chemin du ballon vers toi.'):t('De rode pijl is hun weg naar ons doel. Jij staat in de weg.','La flèche rouge est leur chemin vers notre but. Tu le bloques.')}`,enter:async()=>{
-       view={coach:{carrier,carrierText:t('BAL','BALLON'),mine,mineText:t('JIJ','TOI'),best:c.ideal,bestText:t('BESTE PLEK','MEILLEURE PLACE'),lane:isOpen?[bPos,c.ideal]:null,goalLine:isOpen?null:[bPos,goal]}}}},
+     {head:t('Hier is het beter','C’est mieux ici'),text:`${p2(c.tip)} ${isOpen?t('De groene pijl is de weg van de bal naar jou.','La flèche verte est le chemin du ballon vers toi.'):t('De rode pijl is hun weg naar ons doel. Jij staat in de weg.','La flèche rouge est leur chemin vers notre but. Tu le bloques.')}${alsoNote}`,enter:async()=>{
+       view={coach:{carrier,carrierText:t('BAL','BALLON'),mine,mineText:t('JIJ','TOI'),best:spot,bestText:t('GOEDE PLEK','BONNE PLACE'),also,alsoText,lane:isOpen?[bPos,spot]:null,goalLine:isOpen?null:[bPos,goal]}}}},
      {head:t('Kijk!','Regarde !'),text:`${isOpen?t('Nu ben jij vrij en krijg je de bal.','Maintenant tu es libre et tu reçois le ballon.'):t('Nu pak jij de bal en is ons doel veilig.','Maintenant tu prends le ballon et notre but est protégé.')} ${p2(RULES[c.role][isOpen?'open':'dicht'])}`,enter:async()=>{
-       view={coach:{best:c.ideal,bestText:t('BESTE PLEK','MEILLEURE PLACE')}};
-       await tween(me,{x:c.ideal.x,y:c.ideal.y},Math.max(900,runDur(me,c.ideal.x,c.ideal.y,500,1500)),'run');if(!alive())return;
+       view={coach:{best:spot,bestText:t('GOEDE PLEK','BONNE PLACE')}};
+       await tween(me,{x:spot.x,y:spot.y},Math.max(900,runDur(me,spot.x,spot.y,500,1500)),'run');if(!alive())return;
        await kick(me.x,me.y,Math.max(420,dist(ball,me)*8),isOpen?.8:.4);if(!alive())return;ball.owner=me;setAct(me,'trap',380);sfx.good()}}
     ];
     let i=-1;const box=$('coach'),nextBtn=$('coachNext');
