@@ -322,6 +322,10 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .err-row>b{font-family:var(--display);font-weight:400;font-size:24px;color:var(--bad);font-variant-numeric:tabular-nums}
 .err-row strong{display:block;font-size:13.5px;color:var(--muted)}
 .err-row p{font-size:16px}.err-row small{color:var(--open);font-size:13.5px}
+.players{display:flex;flex-direction:column;gap:9px}
+.player{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;text-align:left;min-height:68px;padding:10px 14px;background:#0a1529dd;border:1px solid #ffffff33;border-radius:14px;color:var(--chalk)}
+.player-kit{width:34px;height:34px;border-radius:50%;border:2px solid #ffffff99}
+.player strong{display:block;font-size:22px;overflow-wrap:anywhere}.player small{font-size:15px;color:var(--muted)}.player>b{font-size:22px}
 </style>
 
 <canvas id="gl" aria-hidden="true"></canvas>
@@ -329,11 +333,26 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
   <div class="top">
     <button class="icon-btn" id="back" aria-label="Terug" data-fr-aria="Retour" hidden>←</button>
     <div class="steps" id="steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <button class="icon-btn" id="switchPlayer" aria-label="Andere speler" data-fr-aria="Changer de joueur" hidden>👤</button>
     <button class="icon-btn" id="openCab" aria-label="Mijn bekers" data-fr-aria="Mes trophées"></button>
     <button class="icon-btn" id="soundHome" aria-label="Geluid aan of uit" data-fr-aria="Son activé ou coupé">🔊</button>
   </div>
 
-  <div class="step" id="s1">
+  <div class="step" id="s0" hidden>
+    <h1>Find the <em>Space</em></h1>
+    <h2 data-fr="Qui joue ?">Wie speelt er?</h2>
+    <div class="players" id="players"></div>
+    <button class="cta" id="newPlayer" data-fr="+ Nouveau joueur">+ Nieuwe speler</button>
+    <div class="row">
+      <strong data-fr="Langue">Taal</strong>
+      <div class="seg">
+        <button id="pickNl" aria-pressed="true" lang="nl">Vlaams</button>
+        <button id="pickFr" aria-pressed="false" lang="fr">Français</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="s1" hidden>
     <h1>Find the <em>Space</em><span id="heroName" hidden></span></h1>
     <div class="form-panel">
     <div class="two"><div>
@@ -788,7 +807,7 @@ const ACTIONS=8;
 
 /* ========== Helpers ========== */
 const memoryStore=new Map();
-const store={get(k,d){if(memoryStore.has(k))return JSON.parse(memoryStore.get(k));try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){memoryStore.set(k,JSON.stringify(v));try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const store={get(k,d){if(memoryStore.has(k))return JSON.parse(memoryStore.get(k));try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){memoryStore.set(k,JSON.stringify(v));try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},remove(k){memoryStore.delete(k);try{localStorage.removeItem(k)}catch(e){}}};
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const rnd=a=>a[Math.floor(Math.random()*a.length)];
@@ -1852,7 +1871,37 @@ function hull(pts){const p=pts.slice().sort((a,b)=>a.x-b.x||a.y-b.y);if(p.length
 function celebrate(){if(GL.on){GL.jump=1;GL.zoom=1.1;GL.flashAmt=.8;GL.netHit=clock+500;confettiRain();return}if(reduced)return;flash=GL.on?0:.55;shake=9;bulbs=70;for(let i=0;i<130;i++){const a=-Math.PI/2+(Math.random()-.5)*1.8,v=3+Math.random()*7;particles.push({x:W/2+(Math.random()-.5)*W*.5,y:H*.2,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:80+Math.random()*50,col:rnd(['#e0212f','#fff','#ffe34d','#74e08a']),s:2+Math.random()*2.6,rot:Math.random()*6})}}
 
 /* ========== Setup flow ========== */
-const setup={name:store.get('veld-name',''),club:store.get('veld-club',''),fmt:store.get('veld-fmt',5),pos:store.get('veld-pos',null),step:1};
+const setup={name:'',club:'',fmt:5,pos:null,step:0,active:false};
+/* Players: everything personal is kept per player, so nobody's results mix */
+const playerKey=n=>'fts-player-'+n.toLowerCase();
+const starKey=(f,l)=>`fts-stars-${setup.name.toLowerCase()}-${f}-${l}`;
+const playerNames=()=>{const v=store.get('fts-players',[]);return Array.isArray(v)?v:[]};
+const hasPlayer=n=>playerNames().some(x=>x.toLowerCase()===n.toLowerCase());
+function listPlayers(){return playerNames().map(n=>Object.assign({name:n,last:0},store.get(playerKey(n),null))).sort((a,b)=>(b.last||0)-(a.last||0))}
+function savePlayer(){
+  if(!setup.active||!setup.name)return;
+  if(!hasPlayer(setup.name))store.set('fts-players',[...playerNames(),setup.name]);
+  store.set(playerKey(setup.name),{name:setup.name,club:setup.club,fmt:setup.fmt,pos:setup.pos,tempo,lang,last:Date.now()});
+}
+/* Saves from before players existed: every saved name becomes a player */
+function migratePlayers(){
+  if(store.get('fts-players',null))return;
+  const legacy=store.get('veld-name',''),found=new Map();
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('fts-progress-'))continue;const v=store.get(k,null),n=k.slice(13);if(n&&v&&typeof v==='object'&&Array.isArray(v.cups))found.set(n,n.replace(/(^|\s)\S/g,c=>c.toUpperCase()))}}catch(e){}
+  if(legacy)found.set(legacy.toLowerCase(),legacy);
+  found.forEach((name,low)=>{const mine=low===legacy.toLowerCase();
+    store.set(playerKey(name),{name,club:mine?store.get('veld-club',''):'',fmt:mine?store.get('veld-fmt',5):5,pos:mine?store.get('veld-pos',null):null,tempo:mine?store.get('veld-tempo','match'):'match',lang:store.get('veld-lang','nl'),last:mine?1:0});
+    if(mine)Object.keys(FORMATS).forEach(f=>LEVELS.forEach((_,l)=>{const n=store.get(`veld-stars-${f}-${l}`,0);if(n)store.set(`fts-stars-${low}-${f}-${l}`,n)}));
+  });
+  store.set('fts-players',[...found.values()]);
+}
+function deletePlayer(){
+  const low=setup.name.toLowerCase();
+  store.set('fts-players',playerNames().filter(x=>x.toLowerCase()!==low));
+  Object.keys(FORMATS).forEach(f=>LEVELS.forEach((_,l)=>store.remove(starKey(f,l))));
+  KITS.forEach(k=>store.remove(progressKey()+'-kit-'+k.id));
+  [progressKey(),playerKey(low),'fts-kit-'+low,'fts-intro-'+low].forEach(k=>store.remove(k));
+}
 if(!FORMATS[setup.fmt])setup.fmt=5;
 const G_fmt=()=>setup.fmt;
 let G=null,deciding=null,token=0,goTimer=0,advance=null,tempo=store.get('veld-tempo','match');
@@ -1868,9 +1917,13 @@ function show(id){
   if(id==='play')resize();
 }
 function goStep(n){
-  setup.step=n;[1,2,3,4].forEach(i=>$('s'+i).hidden=i!==n);
+  if(n===0){setup.active=false;setup.name=''}
+  setup.step=n;[0,1,2,3,4].forEach(i=>$('s'+i).hidden=i!==n);
   [...$('steps').children].forEach((el,i)=>el.classList.toggle('on',i<n));
-  $('back').hidden=n===1;
+  const many=playerNames().length>0;
+  $('steps').style.visibility=n===0?'hidden':'';$('openCab').hidden=n===0;
+  $('back').hidden=n===0||(n===1&&!many);$('switchPlayer').hidden=n===0||!many;
+  if(n===0)renderPlayers();
   if(n===2)renderFormats();if(n===3)renderPicker();if(n===4)renderLevels();
   if(n===1){updateHero();renderKits()}
   if(GL.on){GL.showHero=n===1;if(n>1&&GL.pitchFor!==setup.fmt)GL_menuScene()}
@@ -1897,7 +1950,7 @@ function renderFormats(){
     const f=FORMATS[k],b=document.createElement('button');b.className='fmt'+(k===5?' best':'');b.id='fmt'+k;
     const dots=f.slots.map(s=>`<circle cx="${s.x}" cy="${s.y*.7}" r="${k===11?4:5}" fill="${s.role==='GK'?'#ffe34d':'#e0212f'}" stroke="#fff" stroke-width="1.2"/>`).join('');
     b.innerHTML=`<svg viewBox="0 0 100 98" aria-hidden="true"><rect width="100" height="98" fill="#2a8d4f"/><path d="M0 49H100" stroke="#fff" stroke-opacity=".7"/><circle cx="50" cy="49" r="9" fill="none" stroke="#fff" stroke-opacity=".7"/>${dots}</svg><span>${k===5?`<span class="badge">${t('Meeste situaties en bekers','Le plus de situations et de trophées')}</span>`:''}<strong>${p2(f.name)}</strong><small>${p2(f.sub)}</small></span>`;
-    b.onclick=()=>{if(setup.fmt!==k)setup.pos=null;setup.fmt=k;store.set('veld-fmt',k);GL_menuScene();goStep(3)};
+    b.onclick=()=>{if(setup.fmt!==k)setup.pos=null;setup.fmt=k;savePlayer();GL_menuScene();goStep(3)};
     box.appendChild(b);
   });
 }
@@ -1910,7 +1963,7 @@ function renderPicker(){
     b.style.left=clamp(s.x,10,90)+'%';b.style.top=clamp(my(s.y),8,94)+'%';
     b.setAttribute('aria-pressed',setup.pos===s.id);b.setAttribute('aria-label',roleName(s));
     b.innerHTML=`<b>${s.no}</b><span>${t(s.sn,s.sf)}</span>`;
-    b.onclick=()=>{setup.pos=s.id;store.set('veld-pos',s.id);renderPicker()};
+    b.onclick=()=>{setup.pos=s.id;savePlayer();renderPicker()};
     box.appendChild(b);
   });
   const sel=slotOf();
@@ -1927,7 +1980,7 @@ function renderLevels(){
   {const st=dayStreak(loadProgress());if(st>=2){const ch=document.createElement('span');ch.className='day-chip';ch.textContent=t(`${st} dagen`,`${st} jours`);$('summary').appendChild(ch)}}
   const box=$('levels');box.innerHTML='';
   LEVELS.forEach((l,i)=>{
-    const n=store.get(`veld-stars-${setup.fmt}-${i}`,0),b=document.createElement('button');b.className='level';b.id='level'+i;
+    const n=store.get(starKey(setup.fmt,i),0),b=document.createElement('button');b.className='level';b.id='level'+i;
     b.innerHTML=`<span class="num">${i+1}</span><span><strong>${p2(l.n)}</strong><small>${p2(l.s)}</small></span><span class="stars" aria-label="${n}/3">${starText(n)}</span>`;
     b.onclick=()=>startMatch(i);box.appendChild(b);
   });
@@ -1937,14 +1990,38 @@ function setLang(l){
   document.querySelectorAll('[data-fr]').forEach(el=>{if(el._nl===undefined)el._nl=el.innerHTML;el.innerHTML=l==='fr'?el.dataset.fr:el._nl});
   document.querySelectorAll('[data-fr-aria]').forEach(el=>{if(el._nlA===undefined)el._nlA=el.getAttribute('aria-label');el.setAttribute('aria-label',l==='fr'?el.dataset.frAria:el._nlA)});
   document.querySelectorAll('[data-fr-ph]').forEach(el=>{if(el._nlP===undefined)el._nlP=el.placeholder;el.placeholder=l==='fr'?el.dataset.frPh:el._nlP});
-  $('langNl').setAttribute('aria-pressed',l==='nl');$('langFr').setAttribute('aria-pressed',l==='fr');
+  $('langNl').setAttribute('aria-pressed',l==='nl');$('langFr').setAttribute('aria-pressed',l==='fr');$('pickNl').setAttribute('aria-pressed',l==='nl');$('pickFr').setAttribute('aria-pressed',l==='fr');savePlayer();if(setup.step===0)renderPlayers();
   $('nameErr').textContent='';bg=null;updateHero();renderKits();
 }
-function setTempo(v){tempo=v;store.set('veld-tempo',v);$('tempoSlow').setAttribute('aria-pressed',v==='slow');$('tempoMatch').setAttribute('aria-pressed',v!=='slow')}
+function setTempo(v){tempo=v;store.set('veld-tempo',v);savePlayer();$('tempoSlow').setAttribute('aria-pressed',v==='slow');$('tempoMatch').setAttribute('aria-pressed',v!=='slow')}
 function commitName(){
   const n=$('nameInput').value.trim().replace(/\s+/g,' ');
   if(!n){$('nameErr').textContent=t('Schrijf eerst je naam.','Écris d’abord ton prénom.');$('nameInput').focus();return false}
-  setup.name=n;setup.club=$('clubInput').value.trim();store.set('veld-name',n);store.set('veld-club',setup.club);$('nameErr').textContent='';return true;
+  if(!setup.active&&hasPlayer(n)){$('nameErr').textContent=t(`${n} bestaat al. Kies die naam in de lijst, of schrijf een andere naam.`,`${n} existe déjà. Choisis ce nom dans la liste, ou écris un autre prénom.`);$('nameInput').focus();return false}
+  setup.name=n;setup.club=$('clubInput').value.trim();setup.active=true;$('nameInput').readOnly=true;savePlayer();$('nameErr').textContent='';return true;
+}
+function rebuildHero(){if(GL.on&&GL.mode!=='match'&&GL.hero){const y=GL.hero.model.yaw;GL.scene.remove(GL.hero.model.root);buildPlayer(GL.hero);GL.hero.model.yaw=y}}
+function fillPlayerForm(locked){$('nameInput').value=setup.name;$('clubInput').value=setup.club;$('nameInput').readOnly=locked;$('nameErr').textContent='';statsFilter.fmt=statsFilter.lv=statsFilter.pos='all'}
+function renderPlayers(){
+  const box=$('players');box.innerHTML='';
+  listPlayers().forEach(d=>{
+    const raw=store.get('fts-progress-'+d.name.toLowerCase(),null)||{},cups=Array.isArray(raw.cups)?raw.cups.length:0,matches=(raw.stats&&raw.stats.matches)||0;
+    const k=KITS.find(x=>x.id===store.get('fts-kit-'+d.name.toLowerCase(),'red'))||KITS[0];
+    const b=document.createElement('button');b.className='player';b.innerHTML='<i class="player-kit" aria-hidden="true"></i><span><strong></strong><small></small></span><b aria-hidden="true">→</b>';
+    b.querySelector('i').style.background=k.main;
+    b.querySelector('strong').textContent=d.name;
+    b.querySelector('small').textContent=`🏆 ${cups} · ${matches} ${matches===1?t('match','match'):t('matchen','matchs')}`;
+    b.onclick=()=>selectPlayer(d);box.appendChild(b);
+  });
+}
+function selectPlayer(d){
+  audio();setup.name=d.name;setup.club=d.club||'';setup.fmt=FORMATS[d.fmt]?d.fmt:5;setup.pos=d.pos||null;setup.active=true;
+  fillPlayerForm(true);setTempo(d.tempo==='slow'?'slow':'match');setLang(d.lang==='fr'?'fr':d.lang==='nl'?'nl':lang);
+  savePlayer();renderKits();rebuildHero();if(GL.on)GL_menuScene();goStep(2);
+}
+function startNewPlayer(){
+  setup.active=false;setup.name='';setup.club='';setup.fmt=5;setup.pos=null;
+  fillPlayerForm(false);setTempo('match');goStep(1);rebuildHero();if(GL.on)GL_menuScene();
 }
 
 /* ========== Match flow ========== */
@@ -2226,7 +2303,7 @@ function feedback(title,tip,kind,my){return new Promise(res=>{
   const sm=$('fbShow');sm.hidden=kind==='good'||!G.demo;sm.disabled=false;
 })}
 function finish(){
-  const r=G.pts/(ACTIONS*3),n=r>=.7?3:r>=.45?2:r>=.2?1:0,key=`veld-stars-${setup.fmt}-${G.lv}`;if(n>store.get(key,0))store.set(key,n);
+  const r=G.pts/(ACTIONS*3),n=r>=.7?3:r>=.45?2:r>=.2?1:0,key=starKey(setup.fmt,G.lv);if(n>store.get(key,0))store.set(key,n);
   $('rTitle').textContent=G.us>G.them?t('Gewonnen!','Gagné !'):G.us===G.them?t('Gelijkspel!','Match nul !'):t('Verloren','Perdu');
   $('rScore').textContent=`${$('tHome').textContent} ${G.us} - ${G.them} ${t('GAST','ADV')}`;
   $('rStars').textContent=starText(n);$('rStars').setAttribute('aria-label',n+'/3');
@@ -2400,7 +2477,9 @@ function renderStats(){
   const rzMsg=document.createElement('p');rzMsg.className='note';rzMsg.setAttribute('role','status');rz.appendChild(rzMsg);
   let armed=null;
   rzBtn.onclick=()=>{if(armed!=='stats'){armed='stats';rzMsg.textContent=t('Zeker? Tik nog een keer. De bekers blijven.','Sûr ? Touchez encore une fois. Les trophées restent.');return}const x=loadProgress();x.stats=blankStats();store.set(progressKey(),x);statsFilter.fmt=statsFilter.lv=statsFilter.pos='all';renderStats();$('statsBody').querySelector('.stat-card').scrollIntoView();flashStatsDone()};
-  allBtn.onclick=()=>{if(armed!=='all'){armed='all';rzMsg.textContent=t('Zeker? Tik nog een keer. Ook alle bekers worden gewist.','Sûr ? Touchez encore une fois. Tous les trophées seront aussi effacés.');return}store.set(progressKey(),blankProgress());renderStats();flashStatsDone()};
+  allBtn.onclick=()=>{if(armed!=='all'){armed='all';rzMsg.textContent=t('Zeker? Tik nog een keer. Ook alle bekers worden gewist.','Sûr ? Touchez encore une fois. Tous les trophées seront aussi effacés.');return}store.set(progressKey(),blankProgress());Object.keys(FORMATS).forEach(f=>LEVELS.forEach((_,l)=>store.remove(starKey(f,l))));renderStats();flashStatsDone()};
+  const delBtn=document.createElement('button');delBtn.id='deletePlayer';delBtn.className='danger';delBtn.textContent=t(`${setup.name} verwijderen`,`Supprimer ${setup.name}`);rzRow.appendChild(delBtn);
+  delBtn.onclick=()=>{if(armed!=='del'){armed='del';rzMsg.textContent=t(`Zeker? Tik nog een keer. ${setup.name} en alles van deze speler verdwijnen.`,`Sûr ? Touchez encore une fois. ${setup.name} et tout ce qui concerne ce joueur disparaîtront.`);return}deletePlayer();show('setup');if(playerNames().length)goStep(0);else startNewPlayer()};
   const pv=card(t('Privacy','Vie privée')),pp=document.createElement('p');pp.textContent=t('De naam en de bekers blijven alleen op dit toestel. Er is geen account, geen reclame en er wordt niets verstuurd.','Le prénom et les trophées restent uniquement sur cet appareil. Il n’y a ni compte, ni publicité, et rien n’est envoyé.');pv.appendChild(pp);
 }
 let cabReturn='setup',resetArmed=false;
@@ -2457,7 +2536,7 @@ $('fbShow').onclick=async()=>{
   const d=G&&G.demo;if(!d||!advance)return;const my=token,go=advance;clearTimeout(goTimer);G.demo=null;
   await coachSession(d,my);if(my===token)go();
 };
-$('openCab').onclick=()=>{if(setup.step===1&&$('nameInput').value.trim())setup.name=$('nameInput').value.trim();openCabinet('setup')};
+$('openCab').onclick=()=>{if(!setup.active&&!commitName())return;openCabinet('setup')};
 $('rCab').onclick=()=>openCabinet('result');
 $('cabBack').onclick=()=>{show(cabReturn);if(cabReturn==='setup'&&setup.step===4)renderLevels();if(cabReturn==='result')renderNextGoal($('rNext'))};
 $('awardGo').onclick=showNextAward;
@@ -2484,6 +2563,9 @@ $('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefau
 $('toFormat').onclick=()=>{if(commitName()){audio();goStep(2)}};
 $('toLevel').onclick=()=>{if(slotOf())goStep(4)};
 $('back').onclick=()=>goStep(setup.step-1);
+$('switchPlayer').onclick=()=>goStep(0);
+$('newPlayer').onclick=()=>{audio();startNewPlayer();$('nameInput').focus()};
+$('pickNl').onclick=()=>setLang('nl');$('pickFr').onclick=()=>setLang('fr');
 $('quit').onclick=()=>setPaused(true);
 $('pauseGo').onclick=()=>setPaused(false);
 $('pauseStop').onclick=()=>{setPaused(false);stopMatch()};
@@ -2510,10 +2592,10 @@ function frame(rawTs){
   if(!$('play').hidden&&cv.width>10&&us.length)draw();
   requestAnimationFrame(frame);
 }
-$('nameInput').value=setup.name;$('clubInput').value=setup.club;
+migratePlayers();
 initGL();
-setSoundIcons();setTempo(tempo);setLang(store.get('veld-lang','nl')==='fr'?'fr':'nl');goStep(1);
+setSoundIcons();setTempo(tempo);setLang(store.get('veld-lang','nl')==='fr'?'fr':'nl');goStep(playerNames().length?0:1);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{bg=null;if(GL.on){GL.pitchFor=null;GL.mats.clear();GL_menuScene()}});
-if(GL.on){GL_menuScene();GL.showHero=true;GL.snap=true}
+if(GL.on){GL_menuScene();GL.showHero=setup.step===1;GL.snap=true}
 requestAnimationFrame(frame);
 </script>
