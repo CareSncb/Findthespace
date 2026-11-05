@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Find The Space</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@500;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --hud: #9fe8ff;
+    --hud-dim: rgba(159, 232, 255, 0.45);
+    --gold: #ffd27a;
+    --bg: #000;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--hud); font-family: 'Rajdhani', sans-serif; user-select: none; cursor: crosshair; }
+  #app canvas { display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s; }
+  #hud.on { opacity: 1; }
+  .panel { position: absolute; padding: 10px 16px; background: linear-gradient(135deg, rgba(10, 30, 45, 0.45), rgba(10, 30, 45, 0.1)); border-left: 2px solid var(--hud-dim); backdrop-filter: blur(3px); letter-spacing: 0.12em; text-transform: uppercase; }
+  .label { font-size: 12px; opacity: 0.6; }
+  .value { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 500; text-shadow: 0 0 12px rgba(120, 220, 255, 0.6); }
+  #tl { top: 20px; left: 20px; }
+  #tr { top: 20px; right: 20px; text-align: right; border-left: none; border-right: 2px solid var(--hud-dim); }
+  #bl { bottom: 20px; left: 20px; }
+  #br { bottom: 20px; right: 20px; text-align: right; border-left: none; border-right: 2px solid var(--hud-dim); font-size: 13px; line-height: 1.6; opacity: 0.7; }
+  .bar { width: 180px; height: 5px; background: rgba(159, 232, 255, 0.15); margin-top: 6px; }
+  .bar > div { height: 100%; width: 100%; background: var(--hud); box-shadow: 0 0 10px var(--hud); transition: width 0.1s; }
+  #reticle { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border: 1px solid var(--hud-dim); border-radius: 50%; }
+  #reticle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: var(--hud); border-radius: 50%; }
+  #mouse { position: absolute; width: 10px; height: 10px; margin: -5px; border: 1px solid var(--hud); transform: rotate(45deg); }
+
+  .marker { position: absolute; transform: translate(-50%, -50%); text-align: center; font-size: 11px; letter-spacing: 0.15em; color: var(--gold); text-shadow: 0 0 8px rgba(255, 200, 100, 0.8); white-space: nowrap; }
+  .marker .dia { width: 14px; height: 14px; margin: 0 auto 4px; border: 1.5px solid var(--gold); transform: rotate(45deg); }
+  .marker.near .dia { width: 22px; height: 22px; box-shadow: 0 0 14px var(--gold); }
+  #arrow { position: absolute; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 22px solid var(--gold); filter: drop-shadow(0 0 8px var(--gold)); transform-origin: 50% 50%; display: none; }
+
+  #toast { position: absolute; top: 22%; width: 100%; text-align: center; font-family: 'Orbitron', sans-serif; font-size: 26px; letter-spacing: 0.3em; color: var(--gold); text-shadow: 0 0 20px rgba(255, 190, 90, 0.9); opacity: 0; transition: opacity 0.4s; }
+  #warn { position: absolute; bottom: 22%; width: 100%; text-align: center; font-size: 18px; letter-spacing: 0.4em; color: #ff8a5c; opacity: 0; transition: opacity 0.3s; }
+
+  /* ---------- Lens flare (blend screen) ---------- */
+  #flares { position: fixed; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+  .flare { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+
+  /* ---------- Écrans ---------- */
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.85)); transition: opacity 1s; z-index: 10; padding: 16px; }
+  .screen.hidden { opacity: 0; pointer-events: none; }
+  h1 { font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: clamp(36px, 8vw, 92px); letter-spacing: 0.25em; color: #e9f8ff; text-shadow: 0 0 40px rgba(120, 210, 255, 0.6); }
+  .sub { margin-top: 10px; font-size: clamp(14px, 2vw, 20px); letter-spacing: 0.4em; opacity: 0.75; }
+  .controls { margin-top: 40px; display: grid; grid-template-columns: auto auto; gap: 6px 24px; font-size: 15px; letter-spacing: 0.1em; text-align: left; opacity: 0.85; }
+  .controls b { color: #fff; font-weight: 700; }
+  .btn { margin-top: 44px; padding: 14px 40px; border: 1px solid var(--hud); font-family: 'Orbitron', sans-serif; letter-spacing: 0.35em; font-size: 15px; animation: pulse 2s infinite; cursor: pointer; background: transparent; color: var(--hud); }
+  @keyframes pulse { 50% { box-shadow: 0 0 30px rgba(120, 220, 255, 0.5); background: rgba(120, 220, 255, 0.08); } }
+  #loading { position: fixed; bottom: 20px; width: 100%; text-align: center; font-size: 12px; letter-spacing: 0.3em; opacity: 0.5; z-index: 11; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="flares"></div>
+
+  <div id="hud">
+    <div id="reticle"></div>
+    <div id="mouse"></div>
+    <div id="arrow"></div>
+    <div class="panel" id="tl">
+      <div class="label">Signaux récupérés</div>
+      <div class="value" id="count">0 / 7</div>
+      <div class="label" style="margin-top:8px">Temps de mission</div>
+      <div class="value" id="time">00:00</div>
+    </div>
+    <div class="panel" id="tr">
+      <div class="label">Cible la plus proche</div>
+      <div class="value" id="target">—</div>
+      <div class="label" id="tdist" style="margin-top:4px">—</div>
+    </div>
+    <div class="panel" id="bl">
+      <div class="label">Vitesse</div>
+      <div class="value" id="speed">0 u/s</div>
+      <div class="label" style="margin-top:8px">Propulsion</div>
+      <div class="bar"><div id="thr"></div></div>
+      <div class="label" style="margin-top:8px">Énergie boost</div>
+      <div class="bar"><div id="nrg"></div></div>
+    </div>
+    <div class="panel" id="br">
+      Souris : diriger<br>Z/W : accélérer · S : ralentir<br>Q/A · D : roulis<br>Maj : boost · Espace : freiner
+    </div>
+    <div id="toast"></div>
+    <div id="warn"></div>
+  </div>
+
+  <div class="screen" id="start">
+    <h1>FIND THE SPACE</h1>
+    <div class="sub">Système Kepler-Æ · Mission de récupération</div>
+    <div class="controls">
+      <span><b>Souris</b></span><span>Diriger le vaisseau</span>
+      <span><b>Z / W</b> · <b>S</b></span><span>Accélérer · Ralentir</span>
+      <span><b>Q / A</b> · <b>D</b></span><span>Roulis</span>
+      <span><b>Maj</b></span><span>Boost</span>
+      <span><b>Espace</b></span><span>Freinage</span>
+    </div>
+    <div class="sub" style="margin-top:30px;letter-spacing:0.15em">Retrouvez les 7 signaux perdus dans le système.</div>
+    <button class="btn" id="go">DÉCOLLER</button>
+  </div>
+
+  <div class="screen hidden" id="win">
+    <h1>MISSION<br>ACCOMPLIE</h1>
+    <div class="sub" id="wintime"></div>
+    <button class="btn" onclick="location.reload()">REJOUER</button>
+  </div>
+
+  <div id="loading">Compilation des shaders…</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
