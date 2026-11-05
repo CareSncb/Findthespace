@@ -976,12 +976,91 @@ function initGL(){
     const cam=new T.PerspectiveCamera(36,1,1,1600);
     Object.assign(GL,{T,r,scene,cam,camPos:new T.Vector3(0,60,160),camLook:new T.Vector3(0,0,0),ray:new T.Raycaster(),v:new T.Vector3(),models:[],mats:new Map(),tex:new Map()});
     GL.detail=GL.pixel>=1.5?2:1;GL.stage=0;
-    buildWorld();buildBallModel();buildGeo();buildExtras();buildFx();
+    buildWorld();buildBallModel();buildGeo();buildExtras();buildFx();buildRealism();
     if(post)buildPost();
     GL.on=true;document.documentElement.classList.add('gl3d');
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();setTimeout(()=>location.reload(),400)});
     window.addEventListener('resize',GL_resize);GL_resize();
   }catch(e){GL.on=false;document.documentElement.classList.remove('gl3d')}
+}
+/* ========== Realistic look: sky, grass, cloth, ball, crowd, reflections ========== */
+function skyTex(){return canvasTex(1024,512,(g,w,h)=>{
+  const l=g.createLinearGradient(0,0,0,h);[[0,'#02050d'],[.3,'#06102a'],[.45,'#13274d'],[.5,'#3a5486'],[.53,'#1a2848'],[.58,'#0a1428'],[1,'#050a18']].forEach(([a,c])=>l.addColorStop(a,c));g.fillStyle=l;g.fillRect(0,0,w,h);
+  /* City glow on the horizon */
+  for(let i=0;i<7;i++){const x=Math.random()*w,rg=g.createRadialGradient(x,h*.5,0,x,h*.5,h*.22);rg.addColorStop(0,'rgba(255,186,120,.11)');rg.addColorStop(1,'rgba(255,186,120,0)');g.fillStyle=rg;g.fillRect(0,0,w,h)}
+  /* Thin clouds lit from below */
+  for(let i=0;i<46;i++){const x=Math.random()*w,y=h*(.28+Math.random()*.19),rw=60+Math.random()*170,rg=g.createRadialGradient(x,y,0,x,y,rw);rg.addColorStop(0,'rgba(130,150,190,.07)');rg.addColorStop(1,'rgba(130,150,190,0)');g.save();g.translate(x,y);g.scale(1,.22);g.translate(-x,-y);g.fillStyle=rg;g.fillRect(x-rw,y-rw,rw*2,rw*2);g.restore()}
+  /* Stars of different colours and sizes */
+  for(let i=0;i<1500;i++){const y=Math.pow(Math.random(),1.3)*h*.46,s=Math.random()<.04?2:1;g.globalAlpha=Math.random()*.7*(1-y/(h*.5))+.05;g.fillStyle=Math.random()<.2?'#ffe2c0':Math.random()<.3?'#c8dcff':'#ffffff';g.fillRect(Math.random()*w,y,s,s)}
+  g.globalAlpha=1;
+})}
+/* Real turf: patches, blade grain and a soft sheen that change across the pitch */
+function grassify(m){
+  m.onBeforeCompile=sh=>{
+    sh.vertexShader='varying vec3 vGW;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvGW=(modelMatrix*vec4(transformed,1.)).xyz;');
+    sh.fragmentShader='varying vec3 vGW;\nfloat gH(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}\nfloat gN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(gH(i),gH(i+vec2(1.,0.)),f.x),mix(gH(i+vec2(0.,1.)),gH(i+1.),f.x),f.y);}\n'+sh.fragmentShader
+      .replace('#include <map_fragment>',`#include <map_fragment>
+float gd=length(cameraPosition-vGW),gfar=1.-smoothstep(70.,230.,gd);
+float gp=gN(vGW.xz*.08)*.6+gN(vGW.xz*.31)*.4;
+float gb=mix(.5,gN(vGW.xz*vec2(2.4,9.5)),gfar);
+diffuseColor.rgb*=.8+.32*gp+.2*(gb-.5);
+diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.1,1.03,.8),smoothstep(.6,.88,gp)*.45);`)
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor-.24*gb*gfar+.04,.5,1.);')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(normal+vec3(gN(vGW.xz*7.)-.5,0.,gN(vGW.zx*7.+3.)-.5)*.24*gfar);');
+  };
+  return m;
+}
+/* Knitted shirt fabric */
+function fabricNormal(){
+  if(GL.fabricN)return GL.fabricN;
+  const t=canvasTex(512,256,(g,w,h)=>{g.fillStyle='rgb(128,128,255)';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=3)for(let x=0;x<w;x+=3){const o=((x+y)/3)%2?1:-1;g.fillStyle=`rgb(${128+o*24},${128-o*16},240)`;g.fillRect(x,y,2,2)}});
+  t.encoding=GL.T.LinearEncoding;GL.fabricN=t;return t;
+}
+/* Supporters: rounded shoulders instead of boxes, every one a little different */
+function crowdBodyGeo(T){const V=(x,y)=>new T.Vector2(x,y);const g=new T.LatheGeometry([V(0,-1.35),V(.72,-1.35),V(.78,-.5),V(.74,.4),V(.86,.9),V(.62,1.25),V(.22,1.35),V(0,1.35)],7);g.scale(1.05,1,.75);return g}
+function crowdScale(p){const s=Math.sin(p[0]*12.9898+p[2]*78.233+p[1]*3.7)*43758.5453;return .88+.24*(s-Math.floor(s))}
+/* A real match ball: 12 black pentagons, 20 white hexagons, sewn seams */
+function ballMaps(){
+  const T=GL.T,W=GL.detail>1?1024:768,H=W/2,ph=(1+Math.sqrt(5))/2,C=[];
+  [[-1,ph,0],[1,ph,0],[-1,-ph,0],[1,-ph,0],[0,-1,ph],[0,1,ph],[0,-1,-ph],[0,1,-ph],[ph,0,-1],[ph,0,1],[-ph,0,-1],[-ph,0,1]].forEach(v=>{const l=Math.hypot(v[0],v[1],v[2]);C.push([v[0]/l,v[1]/l,v[2]/l,-.0238])});
+  const n=C.length;
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++){const a=C[i],b=C[j],c=C[k],d=(p,q)=>p[0]*q[0]+p[1]*q[1]+p[2]*q[2];if(d(a,b)>.4&&d(a,c)>.4&&d(b,c)>.4){const x=a[0]+b[0]+c[0],y=a[1]+b[1]+c[1],z=a[2]+b[2]+c[2],l=Math.hypot(x,y,z);C.push([x/l,y/l,z/l,0])}}
+  const col=document.createElement('canvas'),bmp=document.createElement('canvas');col.width=bmp.width=W;col.height=bmp.height=H;
+  const cg=col.getContext('2d'),bg2=bmp.getContext('2d'),ci=cg.createImageData(W,H),bi=bg2.createImageData(W,H);
+  for(let y=0;y<H;y++){const th=(y+.5)/H*Math.PI,st=Math.sin(th),ct=Math.cos(th);
+    for(let x=0;x<W;x++){const pp=(x+.5)/W*Math.PI*2,dx=-Math.cos(pp)*st,dy=ct,dz=Math.sin(pp)*st;
+      let b1=-9,b2=-9,bi1=0;for(let k=0;k<C.length;k++){const c=C[k],s=c[0]*dx+c[1]*dy+c[2]*dz+c[3];if(s>b1){b2=b1;b1=s;bi1=k}else if(s>b2)b2=s}
+      const e=b1-b2,seam=Math.min(1,e/.011),pent=bi1<12,grain=.94+.06*Math.random();
+      let v=pent?22:244;v=v*(.35+.65*seam);if(!pent)v=Math.max(v,150*(1-seam)+v*seam);
+      const o=(y*W+x)*4;ci.data[o]=v*grain;ci.data[o+1]=v*grain;ci.data[o+2]=(pent?v*1.08:v*.97)*grain;ci.data[o+3]=255;
+      const h=255*Math.sqrt(Math.min(1,e/.02));bi.data[o]=bi.data[o+1]=bi.data[o+2]=h;bi.data[o+3]=255}}
+  cg.putImageData(ci,0,0);bg2.putImageData(bi,0,0);
+  const map=new T.CanvasTexture(col);map.encoding=T.sRGBEncoding;map.anisotropy=Math.min(8,GL.r.capabilities.getMaxAnisotropy());
+  const bump=new T.CanvasTexture(bmp);return {map,bump};
+}
+/* Reflections from the floodlights, and their beams in the night air */
+function buildRealism(){
+  const T=GL.T,r=GL.r,scene=GL.scene;
+  try{
+    const es=new T.Scene();
+    const grad=canvasTex(256,128,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);[[0,'#03060f'],[.38,'#0c1a36'],[.5,'#3a4c70'],[.53,'#141c30'],[.7,'#0c2a18'],[1,'#17552d']].forEach(([a,c])=>l.addColorStop(a,c));g.fillStyle=l;g.fillRect(0,0,w,h)});
+    es.add(new T.Mesh(new T.SphereGeometry(100,32,16),new T.MeshBasicMaterial({map:grad,side:T.BackSide})));
+    const lm=new T.MeshBasicMaterial({color:0xffffff});lm.color.setRGB(16,15.5,14);
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([x,z])=>{const p=new T.Mesh(new T.BoxGeometry(16,7,1),lm);p.position.set(x*52,50,z*62);p.lookAt(0,0,0);es.add(p)});
+    const strip=new T.MeshBasicMaterial({color:0xffffff});strip.color.setRGB(3,2.9,2.6);
+    [[0,-80,1],[0,80,1],[-70,0,0],[70,0,0]].forEach(([x,z,a])=>{const s=new T.Mesh(new T.BoxGeometry(a?120:2,1.5,a?2:150),strip);s.position.set(x,36,z);es.add(s)});
+    const pm=new T.PMREMGenerator(r);GL.env=pm.fromScene(es,.03,1,500).texture;pm.dispose();scene.environment=GL.env;
+  }catch(e){}
+  const coneMat=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide,uniforms:{uI:{value:.075}},
+    vertexShader:'varying float vT;varying vec3 vN;varying vec3 vV;void main(){vT=uv.y;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'uniform float uI;varying float vT;varying vec3 vN;varying vec3 vV;void main(){float e=pow(abs(dot(normalize(vN),normalize(vV))),2.5);float a=e*pow(vT,1.6)*uI;gl_FragColor=vec4(vec3(1.,.96,.86)*a,1.);}'});
+  GL.cones=new T.Group();
+  [[-125,-150],[125,-150],[-125,150],[125,150]].forEach(([x,z])=>{
+    const from=new T.Vector3(x,120,z),to=new T.Vector3(x*.22,0,z*.22),dir=to.clone().sub(from),L=dir.length();dir.normalize();
+    const g=new T.ConeGeometry(46,L,28,1,true);g.translate(0,-L/2,0);
+    const c=new T.Mesh(g,coneMat);c.position.copy(from);c.quaternion.setFromUnitVectors(new T.Vector3(0,-1,0),dir);c.renderOrder=3;GL.cones.add(c);
+  });
+  scene.add(GL.cones);
 }
 function buildPost(){
   const T=GL.T,r=GL.r,sz=r.getDrawingBufferSize(new T.Vector2());
@@ -991,16 +1070,17 @@ function buildPost(){
   /* A single bad HDR pixel must never spread through the glow */
   comp.addPass(new T.ShaderPass({uniforms:{tDiffuse:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform sampler2D tDiffuse;varying vec2 vUv;void main(){vec3 c=texture2D(tDiffuse,vUv).rgb;if(!(c.r==c.r)||!(c.g==c.g)||!(c.b==c.b)||c.r>1e4||c.g>1e4||c.b>1e4)c=vec3(0.);gl_FragColor=vec4(clamp(c,0.,12.),1.);}'}));
   GL.bloom=new T.UnrealBloomPass(new T.Vector2(window.innerWidth,window.innerHeight),.42,.62,1.02);comp.addPass(GL.bloom);
-  GL.grade=new T.ShaderPass({uniforms:{tDiffuse:{value:null},uFlash:{value:0}},
+  GL.grade=new T.ShaderPass({uniforms:{tDiffuse:{value:null},uFlash:{value:0},uT:{value:0}},
    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-   fragmentShader:`uniform sampler2D tDiffuse;uniform float uFlash;varying vec2 vUv;
+   fragmentShader:`uniform sampler2D tDiffuse;uniform float uFlash;uniform float uT;varying vec2 vUv;
 vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
-void main(){vec3 c=texture2D(tDiffuse,vUv).rgb*.74;
+void main(){vec2 dd=(vUv-.5)*.003;vec3 c=vec3(texture2D(tDiffuse,vUv+dd).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv-dd).b)*.74;
  float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,1.14);
  c=aces(c);c=pow(c,vec3(1./2.2));
  c=mix(c,c*c*(3.-2.*c),.22);
  vec2 d=vUv-.5;c*=1.-dot(d,d)*.62;
  c+=vec3(1.,.96,.84)*uFlash;
+ c+=(fract(sin(dot(vUv*vec2(1717.,1313.)+uT,vec2(12.9898,78.233)))*43758.5453)-.5)*.02;
  gl_FragColor=vec4(c,1.);}`});
   GL.grade.renderToScreen=true;comp.addPass(GL.grade);GL.comp=comp;
 }
@@ -1091,10 +1171,10 @@ function buildWorld(){
   key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-95,right:95,top:110,bottom:-110,near:20,far:330});key.shadow.bias=-.0006;key.shadow.radius=3;scene.add(key);GL.key=key;
   [[70,120,60,.3],[-70,120,-70,.22],[70,120,-70,.22]].forEach(([x,y,z,i])=>{const d=new T.DirectionalLight(0xdfe9ff,i);d.position.set(x,y,z);scene.add(d)});
   /* Night sky */
-  const sky=new T.Mesh(new T.SphereGeometry(900,24,16),new T.MeshBasicMaterial({side:T.BackSide,fog:false,map:canvasTex(512,512,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);l.addColorStop(0,'#030713');l.addColorStop(.42,'#0a1838');l.addColorStop(.52,'#27416f');l.addColorStop(.56,'#0a1428');l.addColorStop(1,'#050a18');g.fillStyle=l;g.fillRect(0,0,w,h);g.fillStyle='#fff';for(let i=0;i<450;i++){g.globalAlpha=Math.random()*.8;g.fillRect(Math.random()*w,Math.random()*h*.42,1,1)}})}));scene.add(sky);
+  const sky=new T.Mesh(new T.SphereGeometry(900,48,24),new T.MeshBasicMaterial({side:T.BackSide,fog:false,map:skyTex()}));scene.add(sky);
   /* Surround and running track colour */
   const ground=new T.Mesh(new T.PlaneGeometry(700,700),new T.MeshStandardMaterial({color:0x123a22,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.2;ground.receiveShadow=true;scene.add(ground);
-  GL.pitchMat=new T.MeshStandardMaterial({roughness:.92,metalness:0,envMapIntensity:.2});
+  GL.pitchMat=grassify(new T.MeshStandardMaterial({roughness:.9,metalness:0,envMapIntensity:.25}));
   const pitch=new T.Mesh(new T.PlaneGeometry(124,164),GL.pitchMat);pitch.rotation.x=-Math.PI/2;pitch.receiveShadow=true;scene.add(pitch);
   /* Stands: stepped tiers on four sides, full of supporters */
   const SIDES=[{ax:'x',len:190,off:-104,face:1},{ax:'x',len:190,off:104,face:-1},{ax:'z',len:230,off:-88,face:1},{ax:'z',len:230,off:88,face:-1}];
@@ -1113,8 +1193,8 @@ function buildWorld(){
   tiers.instanceMatrix.needsUpdate=true;nearTiers.instanceMatrix.needsUpdate=true;tiers.receiveShadow=true;scene.add(tiers,nearTiers);
   const crowdMat=new T.MeshLambertMaterial({color:0xffffff});GL.uJump={value:.12};GL.uTime={value:0};
   crowdMat.onBeforeCompile=sh=>{sh.uniforms.uJump=GL.uJump;sh.uniforms.uTime=GL.uTime;sh.vertexShader='uniform float uJump;uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\ntransformed.y+=uJump*2.4*abs(sin(uTime*7.+instanceMatrix[3][0]*.73+instanceMatrix[3][2]*.51));\n#endif')};
-  const col=new T.Color(),personGeo=new T.BoxGeometry(1.7,2.7,1.3),headGeo=new T.IcosahedronGeometry(.72,0);
-  const mkCrowd=list=>{const c=new T.InstancedMesh(personGeo,crowdMat,list.length),hd=new T.InstancedMesh(headGeo,crowdMat,list.length),skins=[0xf2c9a5,0x8d5a3a,0xc98d62,0x5c3a26,0xe6b48a];list.forEach((p,i)=>{m.makeTranslation(p[0],p[1],p[2]);c.setMatrixAt(i,m);col.setHex(palette[Math.floor(Math.random()*palette.length)]).multiplyScalar(.6);c.setColorAt(i,col);m.makeTranslation(p[0],p[1]+1.9,p[2]);hd.setMatrixAt(i,m);col.setHex(skins[i%5]).multiplyScalar(.7);hd.setColorAt(i,col)});[c,hd].forEach(o=>{o.instanceMatrix.needsUpdate=true;if(o.instanceColor)o.instanceColor.needsUpdate=true;o.frustumCulled=false;scene.add(o)});c.userData.head=hd;return c};
+  const col=new T.Color(),personGeo=crowdBodyGeo(T),headGeo=new T.SphereGeometry(.7,10,8);
+  const mkCrowd=list=>{const c=new T.InstancedMesh(personGeo,crowdMat,list.length),hd=new T.InstancedMesh(headGeo,crowdMat,list.length),skins=[0xf2c9a5,0x8d5a3a,0xc98d62,0x5c3a26,0xe6b48a];list.forEach((p,i)=>{const cs=crowdScale(p),lift=(cs-1)*1.35;m.makeRotationY((cs-1)*5);m.scale(new T.Vector3(cs,cs,cs));m.setPosition(p[0],p[1]+lift,p[2]);c.setMatrixAt(i,m);col.setHex(palette[Math.floor(Math.random()*palette.length)]).multiplyScalar(.6);c.setColorAt(i,col);m.makeTranslation(p[0],p[1]+lift+1.9*cs,p[2]);hd.setMatrixAt(i,m);col.setHex(skins[i%5]).multiplyScalar(.7);hd.setColorAt(i,col)});[c,hd].forEach(o=>{o.instanceMatrix.needsUpdate=true;if(o.instanceColor)o.instanceColor.needsUpdate=true;o.frustumCulled=false;scene.add(o)});c.userData.head=hd;return c};
   mkCrowd(people);const nearCrowd=mkCrowd(nearPeople);GL.nearStand=[nearTiers,nearCrowd,nearCrowd.userData.head];
   /* Roof with light strip */
   const roofMat=new T.MeshStandardMaterial({color:0x0b1222,roughness:.6});
@@ -1174,7 +1254,7 @@ function buildPitch(){
   if(GL.pitchMat.map)GL.pitchMat.map.dispose();GL.pitchMat.map=tex;GL.pitchMat.needsUpdate=true;
   /* Goals */
   const G_=GL.goalGroup;while(G_.children.length)G_.remove(G_.children[0]);
-  const postM=new T.MeshStandardMaterial({color:0xffffff,roughness:.35,metalness:.1}),[l,r]=f.line,W_=r-l,H_=f.players===11?8:9,D_=5.5;
+  const postM=new T.MeshPhysicalMaterial({color:0xffffff,roughness:.32,metalness:0,clearcoat:1,clearcoatRoughness:.12,envMapIntensity:1.2}),[l,r]=f.line,W_=r-l,H_=f.players===11?8:9,D_=5.5;
   [[3,-1],[137,1]].forEach(([y,dir])=>{
     const g=new T.Group();g.position.set(0,0,y-70);
     const add=(geo,x,yy,z,rx,rz)=>{const m=new T.Mesh(geo,postM);m.position.set(x,yy,z);if(rx)m.rotation.x=rx;if(rz)m.rotation.z=rz;m.castShadow=true;g.add(m)};
@@ -1191,10 +1271,8 @@ function buildPitch(){
   });
 }
 function buildBallModel(){
-  const T=GL.T;
-  const tex=canvasTex(512,256,(g,w,h)=>{g.fillStyle='#fbfbf8';g.fillRect(0,0,w,h);g.fillStyle='#14171f';
-    for(let r=0;r<4;r++)for(let c=0;c<6;c++){const x=(c+(r%2)*.5)*w/6,y=(r+.5)*h/4;g.beginPath();for(let i=0;i<5;i++){const a=i*1.2566-1.57;g[i?'lineTo':'moveTo'](x+Math.cos(a)*23,y+Math.sin(a)*23)}g.closePath();g.fill()}});
-  GL.ballMesh=new T.Mesh(new T.SphereGeometry(1,24,16),new T.MeshStandardMaterial({map:tex,roughness:.4}));GL.ballMesh.castShadow=true;GL.scene.add(GL.ballMesh);
+  const T=GL.T,mp=ballMaps();
+  GL.ballMesh=new T.Mesh(new T.SphereGeometry(1,48,32),new T.MeshPhysicalMaterial({map:mp.map,bumpMap:mp.bump,bumpScale:.9,roughness:.42,clearcoat:.55,clearcoatRoughness:.3,envMapIntensity:1.1}));GL.ballMesh.castShadow=true;GL.scene.add(GL.ballMesh);
 }
 function buildGeo(){
   const T=GL.T,V=(x,y)=>new T.Vector2(x,y);
@@ -1411,10 +1489,10 @@ function buildPlayer(a){
     });
     bodyGeo=mergeParts(parts,bones);playerGeoCache.set(key,bodyGeo);
   }
-  const bodyMat=mat('skinnedBody',()=>rimify(new T.MeshStandardMaterial({vertexColors:true,skinning:true,roughness:.6,envMapIntensity:.35})));
+  const bodyMat=mat('skinnedBody',()=>rimify(new T.MeshPhysicalMaterial({vertexColors:true,skinning:true,roughness:.55,sheen:new T.Color(0x1c1814),envMapIntensity:.6})));
   const body=new T.SkinnedMesh(bodyGeo,bodyMat);
   /* The shirt keeps its own texture */
-  const shirtMat=mat(`sk${main}${stripe}${a.no}${name.toUpperCase()}`,()=>rimify(new T.MeshStandardMaterial({map:shirtTex(main,hi,stripe,a.no,name.toUpperCase()),skinning:true,roughness:.66,envMapIntensity:.45})));
+  const shirtMat=mat(`sk${main}${stripe}${a.no}${name.toUpperCase()}`,()=>rimify(new T.MeshPhysicalMaterial({map:shirtTex(main,hi,stripe,a.no,name.toUpperCase()),normalMap:fabricNormal(),normalScale:new T.Vector2(.5,.5),sheen:new T.Color(0x3a3a40),skinning:true,roughness:.7,envMapIntensity:.7})));
   if(!GL.torsoGeo){
     const g=geo.torso.clone(),n=g.attributes.position.count;g.scale(1,1,.74);g.translate(0,.46+.05+CY,0);
     const si=new Uint16Array(n*4),sw=new Float32Array(n*4);for(let i=0;i<n;i++){si[i*4]=1;sw[i*4]=1}
@@ -1525,7 +1603,7 @@ function GL_render(ts){
     if(avg>.0215&&!window.__noAdapt&&GL.stage<4){GL.stage++;GL.checkAt=clock+1200;
       if(GL.stage===1&&GL.pixel>1.5){GL.pixel=1.5;GL.r.setPixelRatio(GL.pixel);GL_resize()}
       else if(GL.stage===2&&GL.bloom)GL.bloom.enabled=false;
-      else if(GL.stage===3&&GL.blades)GL.blades.visible=false;
+      else if(GL.stage===3&&GL.blades){GL.blades.visible=false;if(GL.cones)GL.cones.visible=false}
       else if(GL.stage===4&&GL.pixel>1.15){GL.pixel=1.15;GL.r.setPixelRatio(GL.pixel);GL_resize()}
     }
   }
@@ -1575,7 +1653,7 @@ function GL_render(ts){
   if(GL.farNet){const q=GL.netHit>clock?(GL.netHit-clock)/500:0;GL.farNet.scale.z=1+q*.55;GL.farNet.scale.x=1+q*.06}
   if(GL.nearNet){const q=GL.netHitNear>clock?(GL.netHitNear-clock)/500:0;GL.nearNet.scale.z=1+q*.55;GL.nearNet.scale.x=1+q*.06}
   if(GL.trophy.visible){GL.trophySpin+=dt*.9;const tg=GL.trophy.children[0];tg.rotation.y=GL.trophySpin;const k=Math.min(1,GL.trophy.scale.x+dt*3);GL.trophy.scale.setScalar(k);}
-  if(GL.comp){GL.grade.uniforms.uFlash.value=GL.flashAmt*.22;GL.comp.render()}else GL.r.render(GL.scene,cam);
+  if(GL.comp){GL.grade.uniforms.uFlash.value=GL.flashAmt*.22;GL.grade.uniforms.uT.value=(ts%10000)/1000;GL.comp.render()}else GL.r.render(GL.scene,cam);
   GL_health();
 }
 function drawCoachMarks(){
