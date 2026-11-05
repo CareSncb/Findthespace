@@ -1056,7 +1056,7 @@ function buildRealism(){
     fragmentShader:'uniform float uI;varying float vT;varying vec3 vN;varying vec3 vV;void main(){float e=pow(abs(dot(normalize(vN),normalize(vV))),2.5);float a=e*pow(vT,1.6)*uI;gl_FragColor=vec4(vec3(1.,.96,.86)*a,1.);}'});
   GL.cones=new T.Group();
   [[-125,-150],[125,-150],[-125,150],[125,150]].forEach(([x,z])=>{
-    const from=new T.Vector3(x,120,z),to=new T.Vector3(x*.22,0,z*.22),dir=to.clone().sub(from),L=dir.length();dir.normalize();
+    const from=new T.Vector3(x,120,z),to=new T.Vector3(x*.22,0,z*.22),dir=to.clone().sub(from),L=dir.length()*.5;dir.normalize();
     const g=new T.ConeGeometry(46,L,28,1,true);g.translate(0,-L/2,0);
     const c=new T.Mesh(g,coneMat);c.position.copy(from);c.quaternion.setFromUnitVectors(new T.Vector3(0,-1,0),dir);c.renderOrder=3;GL.cones.add(c);
   });
@@ -1656,6 +1656,8 @@ function GL_render(ts){
   GL.uTime.value=ts/1000;GL.jump=Math.max(0,GL.jump-dt*.4);GL.uJump.value=.12+GL.jump;
   GL.ledTex.offset.x=(ts/26000)%1;GL.flags.forEach((f,i)=>{f.rotation.y=Math.sin(ts/300+i)*.4});
   const inMatch=GL.mode==='match',all=GL.models;
+  /* Beams belong to the stadium views; seen from above in a match they draw lines on the grass */
+  if(GL.cones)GL.cones.visible=!inMatch&&GL.stage<3;
   /* Four-way floodlight shadows */
   if(GL.shadowMesh&&GL.stage<5){const S0=GL.shadowO||(GL.shadowO=new T.Object3D());let n=0;const dirs=[[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8]];
     all.forEach(a=>{const h=PLAYER_H*FORMATS[setup.fmt].size;dirs.forEach(d=>{S0.position.set(a.x-50+d[0]*h*.3,0,a.y-70+d[1]*h*.3);S0.rotation.set(0,Math.atan2(d[0],d[1]),0);S0.scale.set(h*.26,1,h*.72);S0.updateMatrix();GL.shadowMesh.setMatrixAt(n++,S0.matrix)});S0.position.set(a.x-50,0,a.y-70);S0.rotation.set(0,0,0);S0.scale.set(h*.42,1,h*.42);S0.updateMatrix();GL.shadowMesh.setMatrixAt(n++,S0.matrix)});
