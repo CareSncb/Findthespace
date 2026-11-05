@@ -1275,21 +1275,58 @@ function buildBallModel(){
   GL.ballMesh=new T.Mesh(new T.SphereGeometry(1,48,32),new T.MeshPhysicalMaterial({map:mp.map,bumpMap:mp.bump,bumpScale:.9,roughness:.42,clearcoat:.55,clearcoatRoughness:.3,envMapIntensity:1.1}));GL.ballMesh.castShadow=true;GL.scene.add(GL.ballMesh);
 }
 function buildGeo(){
-  const T=GL.T,V=(x,y)=>new T.Vector2(x,y);
+  const T=GL.T,V=(x,y)=>new T.Vector2(x,y),L=(pts,seg=18)=>new T.LatheGeometry(pts.map(([r,y])=>V(r,y)),seg);
+  /* A real head: narrower jaw, chin forward, fuller back of the skull */
+  const head=new T.SphereGeometry(.088,40,30);
+  {const p=head.attributes.position,v=new T.Vector3();
+    for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const low=Math.max(0,-v.y/.088);
+      v.x*=.95-.22*low*low;v.z*=v.z>0?1+.05*low:1.07;p.setXYZ(i,v.x,v.y,v.z)}
+    head.computeVertexNormals()}
+  const hand=new T.SphereGeometry(.026,14,10);hand.scale(.78,1.35,.52);hand.translate(0,-.01,0);
   GL.geo={
-   torso:new T.LatheGeometry([V(.09,.5),V(.095,.56),V(.1,.61),V(.117,.68),V(.13,.745),V(.118,.782),V(.062,.803),V(.03,.808)],20),
-   hips:new T.LatheGeometry([V(.09,.53),V(.1,.5),V(.103,.46),V(.09,.43)],16),
-   shortLeg:new T.CylinderGeometry(.056,.066,.125,12),
-   limbT:new T.CylinderGeometry(.043,.033,.22,10),limb:new T.CylinderGeometry(.034,.024,.22,10),
-   armU:new T.CylinderGeometry(.032,.027,.15,10),armL:new T.CylinderGeometry(.026,.02,.15,10),sleeve:new T.CylinderGeometry(.038,.035,.085,10),
-   joint:new T.SphereGeometry(.033,10,8),knee:new T.SphereGeometry(.036,10,8),hand:new T.SphereGeometry(.026,10,8),
-   head:new T.SphereGeometry(.088,24,18),neck:new T.CylinderGeometry(.03,.035,.055,10),ear:new T.SphereGeometry(.019,8,6),nose:new T.SphereGeometry(.013,8,6),
-   eye:new T.SphereGeometry(.0125,8,6),pupil:new T.SphereGeometry(.0072,6,5),brow:new T.BoxGeometry(.028,.006,.008),
-   hairCap:new T.SphereGeometry(.092,20,12,0,Math.PI*2,0,Math.PI*.56),curl:new T.IcosahedronGeometry(.036,1),
-   boot:new T.SphereGeometry(.04,12,8),sole:new T.BoxGeometry(.06,.012,.14),sockBand:new T.CylinderGeometry(.039,.037,.034,12),band:new T.CylinderGeometry(.04,.04,.03,10),collar:new T.TorusGeometry(.033,.007,6,16)
+   torso:L([[.088,.49],[.093,.53],[.097,.58],[.104,.63],[.118,.69],[.127,.735],[.13,.76],[.12,.783],[.08,.8],[.04,.807],[0,.81]],32),
+   hips:new T.LatheGeometry([V(.09,.53),V(.1,.5),V(.103,.46),V(.09,.43)],20),
+   /* Shorts flare a little at the hem */
+   shortLeg:L([[.071,-.065],[.069,-.04],[.065,.02],[.06,.06],[0,.064]]),
+   /* Muscles: quadriceps, calf, biceps, forearm */
+   limbT:L([[0,-.222],[.035,-.22],[.038,-.2],[.043,-.16],[.049,-.1],[.053,-.05],[.054,-.01],[.045,.012],[0,.02]]),
+   limb:L([[0,-.218],[.022,-.215],[.024,-.19],[.03,-.14],[.037,-.09],[.036,-.05],[.033,-.01],[.03,.01],[0,.015]]),
+   armU:L([[0,-.158],[.024,-.155],[.027,-.12],[.032,-.07],[.033,-.03],[.031,0],[0,.012]],16),
+   armL:L([[0,-.152],[.019,-.15],[.021,-.12],[.027,-.06],[.026,-.01],[0,.006]],16),
+   sleeve:L([[.041,-.085],[.04,-.06],[.039,-.02],[.036,0],[0,.004]],16),
+   joint:new T.SphereGeometry(.036,14,10),elbow:new T.SphereGeometry(.027,14,10),knee:new T.SphereGeometry(.034,14,10),hand,
+   head,neck:new T.CylinderGeometry(.027,.032,.06,16),ear:new T.SphereGeometry(.019,10,8),nose:new T.SphereGeometry(.013,10,8),
+   eye:new T.SphereGeometry(.0125,12,10),pupil:new T.SphereGeometry(.0072,10,8),pupil2:new T.SphereGeometry(.0038,8,6),brow:new T.BoxGeometry(.026,.0045,.006),
+   hairCap:new T.SphereGeometry(.092,32,16,0,Math.PI*2,0,Math.PI*.56),curl:new T.IcosahedronGeometry(.036,1),
+   boot:new T.SphereGeometry(.04,16,10),sole:new T.BoxGeometry(.06,.012,.14),sockBand:new T.CylinderGeometry(.039,.037,.034,16),band:new T.CylinderGeometry(.04,.04,.03,12),collar:new T.TorusGeometry(.033,.007,8,20)
   };
-  [GL.geo.limbT,GL.geo.limb].forEach(g=>g.translate(0,-.11,0));[GL.geo.armU,GL.geo.armL].forEach(g=>g.translate(0,-.075,0));GL.geo.sleeve.translate(0,-.04,0);
 }
+/* A painted face for every skin tone: lips, eyelids, cheeks and soft shadows */
+function faceTex(skin){
+  GL.faceT=GL.faceT||{};if(GL.faceT[skin])return GL.faceT[skin];
+  const T=GL.T,c=new T.Color(skin),lip=c.clone().lerp(new T.Color('#9c3a44'),.6);
+  const t=canvasTex(512,256,(g,w,h)=>{
+    const fx=128,fy=128,rad=(x,y,r,rgb,a)=>{const rg=g.createRadialGradient(x,y,0,x,y,r);rg.addColorStop(0,`rgba(${rgb},${a})`);rg.addColorStop(1,`rgba(${rgb},0)`);g.fillStyle=rg;g.fillRect(x-r,y-r,r*2,r*2)};
+    g.fillStyle=skin;g.fillRect(0,0,w,h);
+    for(let i=0;i<6000;i++){g.fillStyle=Math.random()<.5?'rgba(255,255,255,.035)':'rgba(90,40,30,.05)';g.fillRect(Math.random()*w,Math.random()*h,1.5,1.5)}
+    const lg=g.createLinearGradient(0,0,0,h);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(.6,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(40,15,10,.35)');g.fillStyle=lg;g.fillRect(0,0,w,h);
+    [-1,1].forEach(s=>{rad(fx+s*36,fy+20,26,'220,95,90',.17);rad(fx+s*32,fy-6,15,'70,30,30',.17);rad(fx+s*58,fy+8,20,'60,25,20',.1)});
+    g.fillStyle='rgba(80,35,25,.16)';g.beginPath();g.ellipse(fx-8,fy+11,3,11,0,0,7);g.fill();g.beginPath();g.ellipse(fx+8,fy+11,3,11,0,0,7);g.fill();
+    rad(fx,fy+21,8,'60,20,15',.25);
+    g.fillStyle='#'+lip.getHexString();g.beginPath();g.ellipse(fx,fy+34,16,5.2,0,0,7);g.fill();
+    g.fillStyle='rgba(50,10,12,.75)';g.fillRect(fx-15,fy+33,30,2);
+    g.fillStyle='rgba(255,255,255,.16)';g.beginPath();g.ellipse(fx,fy+36.5,7,1.4,0,0,7);g.fill();
+    g.strokeStyle='rgba(30,15,10,.7)';g.lineWidth=2.2;[-1,1].forEach(s=>{g.beginPath();g.ellipse(fx+s*32,fy-8,10,6,0,Math.PI*1.08,Math.PI*1.92);g.stroke()});
+    rad(fx,fy+62,42,'40,15,10',.22);
+  });
+  GL.faceT[skin]=t;return t;
+}
+function faceMat(skin){return mat('face'+skin,()=>rimify(new GL.T.MeshPhysicalMaterial({map:faceTex(skin),skinning:true,roughness:.5,sheen:new GL.T.Color(0x2a1812),envMapIntensity:.5})))}
+/* Hair made of strands that catch the light */
+function hairMat(hc){return mat('hair'+hc,()=>{const T=GL.T,base=new T.Color(hc);
+  const t=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#'+base.getHexString();g.fillRect(0,0,w,h);
+    for(let i=0;i<2400;i++){const x=Math.random()*w,y=Math.random()*h-40,l=20+Math.random()*80;g.strokeStyle=Math.random()<.5?`rgba(255,232,205,${.05+Math.random()*.14})`:`rgba(0,0,0,${.1+Math.random()*.25})`;g.lineWidth=.6+Math.random()*.9;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+(Math.random()-.5)*10,y+l/2,x+(Math.random()-.5)*7,y+l);g.stroke()}});
+  return rimify(new T.MeshPhysicalMaterial({map:t,skinning:true,roughness:.48,sheen:new T.Color(0x554433),envMapIntensity:.6}))})}
 function mat(key,build){let m=GL.mats.get(key);if(!m){m=build();GL.mats.set(key,m)}return m}
 function shirtTex(main,hi,stripe,no,name){
   return canvasTex(512,256,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);l.addColorStop(0,hi);l.addColorStop(.62,main);g.fillStyle=l;g.fillRect(0,0,w,h);
@@ -1475,14 +1512,14 @@ function buildPlayer(a){
     const P=(g,c,bone,x,y,z,o={})=>{const l=new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(o.rx||0,0,o.rz||0)),new T.Vector3(o.sx||1,o.sy||1,o.sz||1));parts.push({g,c:C(c),b:bid(bone),m:new T.Matrix4().multiplyMatrices(bone.matrixWorld,l)})};
     P(geo.hips,shortsC,pelvis,0,PY,0,{sz:.8});
     P(geo.collar,main,chest,0,.797+CY,0,{rx:Math.PI/2});P(geo.neck,a.skin,chest,0,.825+CY,0);
-    P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
+    if(!lod)P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
     if(hs===3&&lod){for(let i=0;i<14;i++){const an=i*2.399,yy=.03+i*.0046,r=.084-(i%5)*.004;P(geo.curl,hairC,headG,Math.cos(an)*r,yy,Math.sin(an)*r-.012)}}
-    else P(geo.hairCap,hairC,headG,0,.004,-.006,{rx:-.28,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1});
-    if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xffffff,headG,sd*.033,.01,.077);P(geo.pupil,0x14100c,headG,sd*.033,.01,.087);P(geo.brow,hairC,headG,sd*.034,.032,.081,{rz:sd*-.15})});P(geo.nose,a.skin,headG,0,-.012,.087)}
+    else if(!lod)P(geo.hairCap,hairC,headG,0,.004,-.006,{rx:-.28,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1});
+    if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xf4f1ec,headG,sd*.032,.01,.073);P(geo.pupil,[0x3b2414,0x5a3a1c,0x2f5a7a,0x4a6a3a][a.no%4],headG,sd*.032,.01,.0815);P(geo.pupil2,0x070605,headG,sd*.032,.01,.0868);P(geo.brow,hairC,headG,sd*.033,.03,.08,{rz:sd*-.12})});P(geo.nose,a.skin,headG,0,-.017,.082,{sx:.72,sy:1.3,sz:.8})}
     [-1,1].forEach(sd=>{const l=limbs[sd];
       P(geo.joint,main,l.arm,0,0,0);P(geo.sleeve,main,l.arm,0,0,0);P(geo.armU,a.skin,l.arm,0,0,0);
       if(a.me&&sd===-1)P(geo.band,0xffc928,l.arm,0,-.055,0);
-      P(geo.armL,gk?main:a.skin,l.fore,0,0,0);if(lod)P(geo.hand,gk?0xfafafa:a.skin,l.fore,0,-.155,0);
+      P(geo.armL,gk?main:a.skin,l.fore,0,0,0);P(geo.elbow,gk?main:a.skin,l.fore,0,.002,0);if(lod)P(geo.hand,gk?0xfafafa:a.skin,l.fore,0,-.155,0);
       P(geo.shortLeg,shortsC,l.leg,0,-.04,0);P(geo.limbT,a.skin,l.leg,0,0,0);
       if(lod)P(geo.knee,a.skin,l.shin,0,0,0);P(geo.limb,sockC,l.shin,0,0,0);if(lod)P(geo.sockBand,us_&&!gk?kit.main:main,l.shin,0,-.014,0);
       P(geo.boot,bootC,l.ankle,0,-.006,.028,{sx:.82,sy:.62,sz:1.5});P(geo.sole,bootC,l.ankle,0,-.026,.028);
@@ -1499,7 +1536,16 @@ function buildPlayer(a){
     g.setAttribute('skinIndex',new T.BufferAttribute(si,4));g.setAttribute('skinWeight',new T.BufferAttribute(sw,4));GL.torsoGeo=g;
   }
   const shirt=new T.SkinnedMesh(GL.torsoGeo,shirtMat);
-  [body,shirt].forEach(o=>{o.castShadow=true;o.frustumCulled=false;root.add(o);o.bind(skeleton,new T.Matrix4())});
+  /* Face and hair carry their own textures */
+  const extra=[];
+  if(lod){
+    const partM=(bone,x,y,z,o={})=>new T.Matrix4().multiplyMatrices(bone.matrixWorld,new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(o.rx||0,0,o.rz||0)),new T.Vector3(o.sx||1,o.sy||1,o.sz||1)));
+    const skinPart=(g,bone,mm)=>{const c=g.clone();c.applyMatrix4(mm);const n=c.attributes.position.count,si=new Uint16Array(n*4),sw=new Float32Array(n*4),b=bid(bone);for(let i=0;i<n;i++){si[i*4]=b;sw[i*4]=1}c.setAttribute('skinIndex',new T.BufferAttribute(si,4));c.setAttribute('skinWeight',new T.BufferAttribute(sw,4));return c};
+    const hg=GL.headSkinGeo||(GL.headSkinGeo=skinPart(geo.head,headG,partM(headG,0,0,0,{sx:.96,sy:1.05})));
+    extra.push(new T.SkinnedMesh(hg,faceMat(a.skin)));
+    if(hs!==3){GL.hairGeos=GL.hairGeos||{};const hg2=GL.hairGeos[hs]||(GL.hairGeos[hs]=skinPart(geo.hairCap,headG,partM(headG,0,.01,-.012,{rx:-.52,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1})));extra.push(new T.SkinnedMesh(hg2,hairMat(hairC)))}
+  }
+  [body,shirt,...extra].forEach(o=>{o.castShadow=true;o.frustumCulled=false;root.add(o);o.bind(skeleton,new T.Matrix4())});
   const sc=PLAYER_H*FORMATS[setup.fmt].size*(a.me?1.12:1);root.scale.set(sc,sc,sc);
   GL.scene.add(root);
   a.model={root,pelvis,chest,limbs,headG,yaw:a.team==='us'?Math.PI:0,j:{hipX:[-.2,-.2],hipZ:[0,0],knee:[.3,.3],ankle:[.1,.1],armX:[0,0],armZ:[-.17,.17],elbow:[-.3,-.3],pelYaw:0,chestYaw:0,leanX:.06,leanZ:0,headX:0,rootY:0,rootYaw:0}};
