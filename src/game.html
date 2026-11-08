@@ -1051,12 +1051,91 @@ function initGL(){
     const cam=new T.PerspectiveCamera(36,1,1,1600);
     Object.assign(GL,{T,r,scene,cam,camPos:new T.Vector3(0,60,160),camLook:new T.Vector3(0,0,0),ray:new T.Raycaster(),v:new T.Vector3(),models:[],mats:new Map(),tex:new Map()});
     GL.detail=GL.pixel>=1.5?2:1;GL.stage=0;
-    buildWorld();buildBallModel();buildGeo();buildExtras();buildFx();
+    buildWorld();buildBallModel();buildGeo();buildExtras();buildFx();buildRealism();
     if(post)buildPost();
     GL.on=true;document.documentElement.classList.add('gl3d');
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();setTimeout(()=>location.reload(),400)});
     window.addEventListener('resize',GL_resize);GL_resize();
   }catch(e){GL.on=false;document.documentElement.classList.remove('gl3d')}
+}
+/* ========== Realistic look: sky, grass, cloth, ball, crowd, reflections ========== */
+function skyTex(){return canvasTex(1024,512,(g,w,h)=>{
+  const l=g.createLinearGradient(0,0,0,h);[[0,'#02050d'],[.3,'#06102a'],[.45,'#13274d'],[.5,'#3a5486'],[.53,'#1a2848'],[.58,'#0a1428'],[1,'#050a18']].forEach(([a,c])=>l.addColorStop(a,c));g.fillStyle=l;g.fillRect(0,0,w,h);
+  /* City glow on the horizon */
+  for(let i=0;i<7;i++){const x=Math.random()*w,rg=g.createRadialGradient(x,h*.5,0,x,h*.5,h*.22);rg.addColorStop(0,'rgba(255,186,120,.11)');rg.addColorStop(1,'rgba(255,186,120,0)');g.fillStyle=rg;g.fillRect(0,0,w,h)}
+  /* Thin clouds lit from below */
+  for(let i=0;i<46;i++){const x=Math.random()*w,y=h*(.28+Math.random()*.19),rw=60+Math.random()*170,rg=g.createRadialGradient(x,y,0,x,y,rw);rg.addColorStop(0,'rgba(130,150,190,.07)');rg.addColorStop(1,'rgba(130,150,190,0)');g.save();g.translate(x,y);g.scale(1,.22);g.translate(-x,-y);g.fillStyle=rg;g.fillRect(x-rw,y-rw,rw*2,rw*2);g.restore()}
+  /* Stars of different colours and sizes */
+  for(let i=0;i<1500;i++){const y=Math.pow(Math.random(),1.3)*h*.46,s=Math.random()<.04?2:1;g.globalAlpha=Math.random()*.7*(1-y/(h*.5))+.05;g.fillStyle=Math.random()<.2?'#ffe2c0':Math.random()<.3?'#c8dcff':'#ffffff';g.fillRect(Math.random()*w,y,s,s)}
+  g.globalAlpha=1;
+})}
+/* Real turf: patches, blade grain and a soft sheen that change across the pitch */
+function grassify(m){
+  m.onBeforeCompile=sh=>{
+    sh.vertexShader='varying vec3 vGW;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvGW=(modelMatrix*vec4(transformed,1.)).xyz;');
+    sh.fragmentShader='varying vec3 vGW;\nfloat gH(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}\nfloat gN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(gH(i),gH(i+vec2(1.,0.)),f.x),mix(gH(i+vec2(0.,1.)),gH(i+1.),f.x),f.y);}\n'+sh.fragmentShader
+      .replace('#include <map_fragment>',`#include <map_fragment>
+float gd=length(cameraPosition-vGW),gfar=1.-smoothstep(70.,230.,gd);
+float gp=gN(vGW.xz*.08)*.6+gN(vGW.xz*.31)*.4;
+float gb=mix(.5,gN(vGW.xz*vec2(2.4,9.5)),gfar);
+diffuseColor.rgb*=.8+.32*gp+.2*(gb-.5);
+diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.1,1.03,.8),smoothstep(.6,.88,gp)*.45);`)
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor-.24*gb*gfar+.04,.5,1.);')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(normal+vec3(gN(vGW.xz*7.)-.5,0.,gN(vGW.zx*7.+3.)-.5)*.24*gfar);');
+  };
+  return m;
+}
+/* Knitted shirt fabric */
+function fabricNormal(){
+  if(GL.fabricN)return GL.fabricN;
+  const t=canvasTex(512,256,(g,w,h)=>{g.fillStyle='rgb(128,128,255)';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=3)for(let x=0;x<w;x+=3){const o=((x+y)/3)%2?1:-1;g.fillStyle=`rgb(${128+o*24},${128-o*16},240)`;g.fillRect(x,y,2,2)}});
+  t.encoding=GL.T.LinearEncoding;GL.fabricN=t;return t;
+}
+/* Supporters: rounded shoulders instead of boxes, every one a little different */
+function crowdBodyGeo(T){const V=(x,y)=>new T.Vector2(x,y);const g=new T.LatheGeometry([V(0,-1.35),V(.72,-1.35),V(.78,-.5),V(.74,.4),V(.86,.9),V(.62,1.25),V(.22,1.35),V(0,1.35)],7);g.scale(1.05,1,.75);return g}
+function crowdScale(p){const s=Math.sin(p[0]*12.9898+p[2]*78.233+p[1]*3.7)*43758.5453;return .88+.24*(s-Math.floor(s))}
+/* A real match ball: 12 black pentagons, 20 white hexagons, sewn seams */
+function ballMaps(){
+  const T=GL.T,W=GL.detail>1?1024:768,H=W/2,ph=(1+Math.sqrt(5))/2,C=[];
+  [[-1,ph,0],[1,ph,0],[-1,-ph,0],[1,-ph,0],[0,-1,ph],[0,1,ph],[0,-1,-ph],[0,1,-ph],[ph,0,-1],[ph,0,1],[-ph,0,-1],[-ph,0,1]].forEach(v=>{const l=Math.hypot(v[0],v[1],v[2]);C.push([v[0]/l,v[1]/l,v[2]/l,-.0238])});
+  const n=C.length;
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++){const a=C[i],b=C[j],c=C[k],d=(p,q)=>p[0]*q[0]+p[1]*q[1]+p[2]*q[2];if(d(a,b)>.4&&d(a,c)>.4&&d(b,c)>.4){const x=a[0]+b[0]+c[0],y=a[1]+b[1]+c[1],z=a[2]+b[2]+c[2],l=Math.hypot(x,y,z);C.push([x/l,y/l,z/l,0])}}
+  const col=document.createElement('canvas'),bmp=document.createElement('canvas');col.width=bmp.width=W;col.height=bmp.height=H;
+  const cg=col.getContext('2d'),bg2=bmp.getContext('2d'),ci=cg.createImageData(W,H),bi=bg2.createImageData(W,H);
+  for(let y=0;y<H;y++){const th=(y+.5)/H*Math.PI,st=Math.sin(th),ct=Math.cos(th);
+    for(let x=0;x<W;x++){const pp=(x+.5)/W*Math.PI*2,dx=-Math.cos(pp)*st,dy=ct,dz=Math.sin(pp)*st;
+      let b1=-9,b2=-9,bi1=0;for(let k=0;k<C.length;k++){const c=C[k],s=c[0]*dx+c[1]*dy+c[2]*dz+c[3];if(s>b1){b2=b1;b1=s;bi1=k}else if(s>b2)b2=s}
+      const e=b1-b2,seam=Math.min(1,e/.011),pent=bi1<12,grain=.94+.06*Math.random();
+      let v=pent?22:244;v=v*(.35+.65*seam);if(!pent)v=Math.max(v,150*(1-seam)+v*seam);
+      const o=(y*W+x)*4;ci.data[o]=v*grain;ci.data[o+1]=v*grain;ci.data[o+2]=(pent?v*1.08:v*.97)*grain;ci.data[o+3]=255;
+      const h=255*Math.sqrt(Math.min(1,e/.02));bi.data[o]=bi.data[o+1]=bi.data[o+2]=h;bi.data[o+3]=255}}
+  cg.putImageData(ci,0,0);bg2.putImageData(bi,0,0);
+  const map=new T.CanvasTexture(col);map.encoding=T.sRGBEncoding;map.anisotropy=Math.min(8,GL.r.capabilities.getMaxAnisotropy());
+  const bump=new T.CanvasTexture(bmp);return {map,bump};
+}
+/* Reflections from the floodlights, and their beams in the night air */
+function buildRealism(){
+  const T=GL.T,r=GL.r,scene=GL.scene;
+  try{
+    const es=new T.Scene();
+    const grad=canvasTex(256,128,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);[[0,'#03060f'],[.38,'#0c1a36'],[.5,'#3a4c70'],[.53,'#141c30'],[.7,'#0c2a18'],[1,'#17552d']].forEach(([a,c])=>l.addColorStop(a,c));g.fillStyle=l;g.fillRect(0,0,w,h)});
+    es.add(new T.Mesh(new T.SphereGeometry(100,32,16),new T.MeshBasicMaterial({map:grad,side:T.BackSide})));
+    const lm=new T.MeshBasicMaterial({color:0xffffff});lm.color.setRGB(16,15.5,14);
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([x,z])=>{const p=new T.Mesh(new T.BoxGeometry(16,7,1),lm);p.position.set(x*52,50,z*62);p.lookAt(0,0,0);es.add(p)});
+    const strip=new T.MeshBasicMaterial({color:0xffffff});strip.color.setRGB(3,2.9,2.6);
+    [[0,-80,1],[0,80,1],[-70,0,0],[70,0,0]].forEach(([x,z,a])=>{const s=new T.Mesh(new T.BoxGeometry(a?120:2,1.5,a?2:150),strip);s.position.set(x,36,z);es.add(s)});
+    const pm=new T.PMREMGenerator(r);GL.env=pm.fromScene(es,.03,1,500).texture;pm.dispose();scene.environment=GL.env;
+  }catch(e){}
+  const coneMat=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide,uniforms:{uI:{value:.075}},
+    vertexShader:'varying float vT;varying vec3 vN;varying vec3 vV;void main(){vT=uv.y;vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'uniform float uI;varying float vT;varying vec3 vN;varying vec3 vV;void main(){float e=pow(abs(dot(normalize(vN),normalize(vV))),2.5);float a=e*pow(vT,1.6)*uI;gl_FragColor=vec4(vec3(1.,.96,.86)*a,1.);}'});
+  GL.cones=new T.Group();
+  [[-125,-150],[125,-150],[-125,150],[125,150]].forEach(([x,z])=>{
+    const from=new T.Vector3(x,120,z),to=new T.Vector3(x*.22,0,z*.22),dir=to.clone().sub(from),L=dir.length()*.5;dir.normalize();
+    const g=new T.ConeGeometry(46,L,28,1,true);g.translate(0,-L/2,0);
+    const c=new T.Mesh(g,coneMat);c.position.copy(from);c.quaternion.setFromUnitVectors(new T.Vector3(0,-1,0),dir);c.renderOrder=3;GL.cones.add(c);
+  });
+  scene.add(GL.cones);
 }
 function buildPost(){
   const T=GL.T,r=GL.r,sz=r.getDrawingBufferSize(new T.Vector2());
@@ -1066,16 +1145,17 @@ function buildPost(){
   /* A single bad HDR pixel must never spread through the glow */
   comp.addPass(new T.ShaderPass({uniforms:{tDiffuse:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform sampler2D tDiffuse;varying vec2 vUv;void main(){vec3 c=texture2D(tDiffuse,vUv).rgb;if(!(c.r==c.r)||!(c.g==c.g)||!(c.b==c.b)||c.r>1e4||c.g>1e4||c.b>1e4)c=vec3(0.);gl_FragColor=vec4(clamp(c,0.,12.),1.);}'}));
   GL.bloom=new T.UnrealBloomPass(new T.Vector2(window.innerWidth,window.innerHeight),.42,.62,1.02);comp.addPass(GL.bloom);
-  GL.grade=new T.ShaderPass({uniforms:{tDiffuse:{value:null},uFlash:{value:0}},
+  GL.grade=new T.ShaderPass({uniforms:{tDiffuse:{value:null},uFlash:{value:0},uT:{value:0}},
    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-   fragmentShader:`uniform sampler2D tDiffuse;uniform float uFlash;varying vec2 vUv;
+   fragmentShader:`uniform sampler2D tDiffuse;uniform float uFlash;uniform float uT;varying vec2 vUv;
 vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
-void main(){vec3 c=texture2D(tDiffuse,vUv).rgb*.74;
+void main(){vec2 dd=(vUv-.5)*.003;vec3 c=vec3(texture2D(tDiffuse,vUv+dd).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv-dd).b)*.74;
  float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,1.14);
  c=aces(c);c=pow(c,vec3(1./2.2));
  c=mix(c,c*c*(3.-2.*c),.22);
  vec2 d=vUv-.5;c*=1.-dot(d,d)*.62;
  c+=vec3(1.,.96,.84)*uFlash;
+ c+=(fract(sin(dot(vUv*vec2(1717.,1313.)+uT,vec2(12.9898,78.233)))*43758.5453)-.5)*.02;
  gl_FragColor=vec4(c,1.);}`});
   GL.grade.renderToScreen=true;comp.addPass(GL.grade);GL.comp=comp;
 }
@@ -1166,10 +1246,10 @@ function buildWorld(){
   key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-95,right:95,top:110,bottom:-110,near:20,far:330});key.shadow.bias=-.0006;key.shadow.radius=3;scene.add(key);GL.key=key;
   [[70,120,60,.3],[-70,120,-70,.22],[70,120,-70,.22]].forEach(([x,y,z,i])=>{const d=new T.DirectionalLight(0xdfe9ff,i);d.position.set(x,y,z);scene.add(d)});
   /* Night sky */
-  const sky=new T.Mesh(new T.SphereGeometry(900,24,16),new T.MeshBasicMaterial({side:T.BackSide,fog:false,map:canvasTex(512,512,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);l.addColorStop(0,'#030713');l.addColorStop(.42,'#0a1838');l.addColorStop(.52,'#27416f');l.addColorStop(.56,'#0a1428');l.addColorStop(1,'#050a18');g.fillStyle=l;g.fillRect(0,0,w,h);g.fillStyle='#fff';for(let i=0;i<450;i++){g.globalAlpha=Math.random()*.8;g.fillRect(Math.random()*w,Math.random()*h*.42,1,1)}})}));scene.add(sky);
+  const sky=new T.Mesh(new T.SphereGeometry(900,48,24),new T.MeshBasicMaterial({side:T.BackSide,fog:false,map:skyTex()}));scene.add(sky);
   /* Surround and running track colour */
   const ground=new T.Mesh(new T.PlaneGeometry(700,700),new T.MeshStandardMaterial({color:0x123a22,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.2;ground.receiveShadow=true;scene.add(ground);
-  GL.pitchMat=new T.MeshStandardMaterial({roughness:.92,metalness:0,envMapIntensity:.2});
+  GL.pitchMat=grassify(new T.MeshStandardMaterial({roughness:.9,metalness:0,envMapIntensity:.25}));
   const pitch=new T.Mesh(new T.PlaneGeometry(124,164),GL.pitchMat);pitch.rotation.x=-Math.PI/2;pitch.receiveShadow=true;scene.add(pitch);
   /* Stands: stepped tiers on four sides, full of supporters */
   const SIDES=[{ax:'x',len:190,off:-104,face:1},{ax:'x',len:190,off:104,face:-1},{ax:'z',len:230,off:-88,face:1},{ax:'z',len:230,off:88,face:-1}];
@@ -1188,8 +1268,8 @@ function buildWorld(){
   tiers.instanceMatrix.needsUpdate=true;nearTiers.instanceMatrix.needsUpdate=true;tiers.receiveShadow=true;scene.add(tiers,nearTiers);
   const crowdMat=new T.MeshLambertMaterial({color:0xffffff});GL.uJump={value:.12};GL.uTime={value:0};
   crowdMat.onBeforeCompile=sh=>{sh.uniforms.uJump=GL.uJump;sh.uniforms.uTime=GL.uTime;sh.vertexShader='uniform float uJump;uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\ntransformed.y+=uJump*2.4*abs(sin(uTime*7.+instanceMatrix[3][0]*.73+instanceMatrix[3][2]*.51));\n#endif')};
-  const col=new T.Color(),personGeo=new T.BoxGeometry(1.7,2.7,1.3),headGeo=new T.IcosahedronGeometry(.72,0);
-  const mkCrowd=list=>{const c=new T.InstancedMesh(personGeo,crowdMat,list.length),hd=new T.InstancedMesh(headGeo,crowdMat,list.length),skins=[0xf2c9a5,0x8d5a3a,0xc98d62,0x5c3a26,0xe6b48a];list.forEach((p,i)=>{m.makeTranslation(p[0],p[1],p[2]);c.setMatrixAt(i,m);col.setHex(palette[Math.floor(Math.random()*palette.length)]).multiplyScalar(.6);c.setColorAt(i,col);m.makeTranslation(p[0],p[1]+1.9,p[2]);hd.setMatrixAt(i,m);col.setHex(skins[i%5]).multiplyScalar(.7);hd.setColorAt(i,col)});[c,hd].forEach(o=>{o.instanceMatrix.needsUpdate=true;if(o.instanceColor)o.instanceColor.needsUpdate=true;o.frustumCulled=false;scene.add(o)});c.userData.head=hd;return c};
+  const col=new T.Color(),personGeo=crowdBodyGeo(T),headGeo=new T.SphereGeometry(.7,10,8);
+  const mkCrowd=list=>{const c=new T.InstancedMesh(personGeo,crowdMat,list.length),hd=new T.InstancedMesh(headGeo,crowdMat,list.length),skins=[0xf2c9a5,0x8d5a3a,0xc98d62,0x5c3a26,0xe6b48a];list.forEach((p,i)=>{const cs=crowdScale(p),lift=(cs-1)*1.35;m.makeRotationY((cs-1)*5);m.scale(new T.Vector3(cs,cs,cs));m.setPosition(p[0],p[1]+lift,p[2]);c.setMatrixAt(i,m);col.setHex(palette[Math.floor(Math.random()*palette.length)]).multiplyScalar(.6);c.setColorAt(i,col);m.makeTranslation(p[0],p[1]+lift+1.9*cs,p[2]);hd.setMatrixAt(i,m);col.setHex(skins[i%5]).multiplyScalar(.7);hd.setColorAt(i,col)});[c,hd].forEach(o=>{o.instanceMatrix.needsUpdate=true;if(o.instanceColor)o.instanceColor.needsUpdate=true;o.frustumCulled=false;scene.add(o)});c.userData.head=hd;return c};
   mkCrowd(people);const nearCrowd=mkCrowd(nearPeople);GL.nearStand=[nearTiers,nearCrowd,nearCrowd.userData.head];
   /* Roof with light strip */
   const roofMat=new T.MeshStandardMaterial({color:0x0b1222,roughness:.6});
@@ -1249,7 +1329,7 @@ function buildPitch(){
   if(GL.pitchMat.map)GL.pitchMat.map.dispose();GL.pitchMat.map=tex;GL.pitchMat.needsUpdate=true;
   /* Goals */
   const G_=GL.goalGroup;while(G_.children.length)G_.remove(G_.children[0]);
-  const postM=new T.MeshStandardMaterial({color:0xffffff,roughness:.35,metalness:.1}),[l,r]=f.line,W_=r-l,H_=f.players===11?8:9,D_=5.5;
+  const postM=new T.MeshPhysicalMaterial({color:0xffffff,roughness:.32,metalness:0,clearcoat:1,clearcoatRoughness:.12,envMapIntensity:1.2}),[l,r]=f.line,W_=r-l,H_=f.players===11?8:9,D_=5.5;
   [[3,-1],[137,1]].forEach(([y,dir])=>{
     const g=new T.Group();g.position.set(0,0,y-70);
     const add=(geo,x,yy,z,rx,rz)=>{const m=new T.Mesh(geo,postM);m.position.set(x,yy,z);if(rx)m.rotation.x=rx;if(rz)m.rotation.z=rz;m.castShadow=true;g.add(m)};
@@ -1266,27 +1346,70 @@ function buildPitch(){
   });
 }
 function buildBallModel(){
-  const T=GL.T;
-  const tex=canvasTex(512,256,(g,w,h)=>{g.fillStyle='#fbfbf8';g.fillRect(0,0,w,h);g.fillStyle='#14171f';
-    for(let r=0;r<4;r++)for(let c=0;c<6;c++){const x=(c+(r%2)*.5)*w/6,y=(r+.5)*h/4;g.beginPath();for(let i=0;i<5;i++){const a=i*1.2566-1.57;g[i?'lineTo':'moveTo'](x+Math.cos(a)*23,y+Math.sin(a)*23)}g.closePath();g.fill()}});
-  GL.ballMesh=new T.Mesh(new T.SphereGeometry(1,24,16),new T.MeshStandardMaterial({map:tex,roughness:.4}));GL.ballMesh.castShadow=true;GL.scene.add(GL.ballMesh);
+  const T=GL.T,mp=ballMaps();
+  GL.ballMesh=new T.Mesh(new T.SphereGeometry(1,48,32),new T.MeshPhysicalMaterial({map:mp.map,bumpMap:mp.bump,bumpScale:.9,roughness:.42,clearcoat:.55,clearcoatRoughness:.3,envMapIntensity:1.1}));GL.ballMesh.castShadow=true;GL.scene.add(GL.ballMesh);
 }
 function buildGeo(){
-  const T=GL.T,V=(x,y)=>new T.Vector2(x,y);
+  const T=GL.T,V=(x,y)=>new T.Vector2(x,y),L=(pts,seg=18)=>new T.LatheGeometry(pts.map(([r,y])=>V(r,y)),seg);
+  /* A real head: narrower jaw, chin forward, fuller back of the skull */
+  const head=new T.SphereGeometry(.088,40,30);
+  {const p=head.attributes.position,v=new T.Vector3();
+    for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const low=Math.max(0,-v.y/.088);
+      v.x*=.95-.22*low*low;v.z*=v.z>0?1+.05*low:1.07;p.setXYZ(i,v.x,v.y,v.z)}
+    head.computeVertexNormals()}
+  /* A football boot: narrow toe, rounded heel, flat sole */
+  const boot=new T.SphereGeometry(.04,24,14);
+  {const p=boot.attributes.position,v=new T.Vector3();
+    for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const zf=v.z/.04;
+      v.x*=1-.28*Math.max(0,zf)*Math.max(0,zf);if(v.y<-.012)v.y=-.012+(v.y+.012)*.25;if(zf>.3)v.y-=.006*(zf-.3);p.setXYZ(i,v.x,v.y,v.z)}
+    boot.computeVertexNormals()}
+  const sole=new T.CylinderGeometry(.031,.031,.009,24);sole.scale(.95,1,2.25);
+  const thumb=new T.SphereGeometry(.011,10,8);thumb.scale(1,1.7,1);
+  const hand=new T.SphereGeometry(.026,14,10);hand.scale(.78,1.35,.52);hand.translate(0,-.01,0);
   GL.geo={
-   torso:new T.LatheGeometry([V(.09,.5),V(.095,.56),V(.1,.61),V(.117,.68),V(.13,.745),V(.118,.782),V(.062,.803),V(.03,.808)],20),
-   hips:new T.LatheGeometry([V(.09,.53),V(.1,.5),V(.103,.46),V(.09,.43)],16),
-   shortLeg:new T.CylinderGeometry(.056,.066,.125,12),
-   limbT:new T.CylinderGeometry(.043,.033,.22,10),limb:new T.CylinderGeometry(.034,.024,.22,10),
-   armU:new T.CylinderGeometry(.032,.027,.15,10),armL:new T.CylinderGeometry(.026,.02,.15,10),sleeve:new T.CylinderGeometry(.038,.035,.085,10),
-   joint:new T.SphereGeometry(.033,10,8),knee:new T.SphereGeometry(.036,10,8),hand:new T.SphereGeometry(.026,10,8),
-   head:new T.SphereGeometry(.088,24,18),neck:new T.CylinderGeometry(.03,.035,.055,10),ear:new T.SphereGeometry(.019,8,6),nose:new T.SphereGeometry(.013,8,6),
-   eye:new T.SphereGeometry(.0125,8,6),pupil:new T.SphereGeometry(.0072,6,5),brow:new T.BoxGeometry(.028,.006,.008),
-   hairCap:new T.SphereGeometry(.092,20,12,0,Math.PI*2,0,Math.PI*.56),curl:new T.IcosahedronGeometry(.036,1),
-   boot:new T.SphereGeometry(.04,12,8),sole:new T.BoxGeometry(.06,.012,.14),sockBand:new T.CylinderGeometry(.039,.037,.034,12),band:new T.CylinderGeometry(.04,.04,.03,10),collar:new T.TorusGeometry(.033,.007,6,16)
+   torso:L([[.088,.49],[.093,.53],[.097,.58],[.104,.63],[.118,.69],[.127,.735],[.13,.76],[.12,.783],[.08,.8],[.04,.807],[0,.81]],32),
+   hips:new T.LatheGeometry([V(.09,.53),V(.1,.5),V(.103,.46),V(.09,.43)],20),
+   /* Shorts flare a little at the hem */
+   shortLeg:L([[.071,-.065],[.069,-.04],[.065,.02],[.06,.06],[0,.064]]),
+   /* Muscles: quadriceps, calf, biceps, forearm */
+   limbT:L([[0,-.222],[.035,-.22],[.038,-.2],[.043,-.16],[.049,-.1],[.053,-.05],[.054,-.01],[.045,.012],[0,.02]]),
+   limb:L([[0,-.218],[.022,-.215],[.024,-.19],[.03,-.14],[.037,-.09],[.036,-.05],[.033,-.01],[.03,.01],[0,.015]]),
+   armU:L([[0,-.158],[.024,-.155],[.027,-.12],[.032,-.07],[.033,-.03],[.031,0],[0,.012]],16),
+   armL:L([[0,-.152],[.019,-.15],[.021,-.12],[.027,-.06],[.026,-.01],[0,.006]],16),
+   sleeve:L([[.041,-.085],[.04,-.06],[.039,-.02],[.036,0],[0,.004]],16),
+   joint:new T.SphereGeometry(.036,14,10),elbow:new T.SphereGeometry(.027,14,10),knee:new T.SphereGeometry(.034,14,10),hand,
+   head,neck:new T.CylinderGeometry(.027,.032,.06,16),ear:new T.SphereGeometry(.019,10,8),nose:new T.SphereGeometry(.013,10,8),
+   eye:new T.SphereGeometry(.0125,12,10),pupil:new T.SphereGeometry(.0072,10,8),pupil2:new T.SphereGeometry(.0038,8,6),brow:new T.BoxGeometry(.026,.0045,.006),
+   hairCap:new T.SphereGeometry(.092,32,16,0,Math.PI*2,0,Math.PI*.56),curl:new T.IcosahedronGeometry(.036,1),
+   boot,sole,thumb,sockBand:new T.CylinderGeometry(.039,.037,.034,16),band:new T.CylinderGeometry(.04,.04,.03,12),collar:new T.TorusGeometry(.033,.007,8,20)
   };
-  [GL.geo.limbT,GL.geo.limb].forEach(g=>g.translate(0,-.11,0));[GL.geo.armU,GL.geo.armL].forEach(g=>g.translate(0,-.075,0));GL.geo.sleeve.translate(0,-.04,0);
 }
+/* A painted face for every skin tone: lips, eyelids, cheeks and soft shadows */
+function faceTex(skin){
+  GL.faceT=GL.faceT||{};if(GL.faceT[skin])return GL.faceT[skin];
+  const T=GL.T,c=new T.Color(skin),lip=c.clone().lerp(new T.Color('#9c3a44'),.6);
+  const t=canvasTex(512,256,(g,w,h)=>{
+    const fx=128,fy=128,rad=(x,y,r,rgb,a)=>{const rg=g.createRadialGradient(x,y,0,x,y,r);rg.addColorStop(0,`rgba(${rgb},${a})`);rg.addColorStop(1,`rgba(${rgb},0)`);g.fillStyle=rg;g.fillRect(x-r,y-r,r*2,r*2)};
+    g.fillStyle=skin;g.fillRect(0,0,w,h);
+    for(let i=0;i<6000;i++){g.fillStyle=Math.random()<.5?'rgba(255,255,255,.035)':'rgba(90,40,30,.05)';g.fillRect(Math.random()*w,Math.random()*h,1.5,1.5)}
+    const lg=g.createLinearGradient(0,0,0,h);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(.8,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(40,15,10,.25)');g.fillStyle=lg;g.fillRect(0,0,w,h);
+    [-1,1].forEach(s=>{rad(fx+s*36,fy+20,26,'220,95,90',.17);rad(fx+s*32,fy-6,15,'70,30,30',.17);rad(fx+s*58,fy+8,20,'60,25,20',.1)});
+    g.fillStyle='rgba(80,35,25,.16)';g.beginPath();g.ellipse(fx-8,fy+11,3,11,0,0,7);g.fill();g.beginPath();g.ellipse(fx+8,fy+11,3,11,0,0,7);g.fill();
+    rad(fx,fy+21,8,'60,20,15',.25);
+    g.fillStyle='#'+lip.getHexString();g.beginPath();g.ellipse(fx,fy+34,16,5.2,0,0,7);g.fill();
+    g.fillStyle='rgba(50,10,12,.75)';g.fillRect(fx-15,fy+33,30,2);
+    g.fillStyle='rgba(255,255,255,.16)';g.beginPath();g.ellipse(fx,fy+36.5,7,1.4,0,0,7);g.fill();
+    g.strokeStyle='rgba(30,15,10,.7)';g.lineWidth=2.2;[-1,1].forEach(s=>{g.beginPath();g.ellipse(fx+s*32,fy-8,10,6,0,Math.PI*1.08,Math.PI*1.92);g.stroke()});
+    rad(fx,fy+74,38,'40,15,10',.12);
+  });
+  GL.faceT[skin]=t;return t;
+}
+function faceMat(skin){return mat('face'+skin,()=>rimify(new GL.T.MeshPhysicalMaterial({map:faceTex(skin),skinning:true,roughness:.5,sheen:new GL.T.Color(0x2a1812),envMapIntensity:.5})))}
+/* Hair made of strands that catch the light */
+function hairMat(hc){return mat('hair'+hc,()=>{const T=GL.T,base=new T.Color(hc);
+  const t=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#'+base.getHexString();g.fillRect(0,0,w,h);
+    for(let i=0;i<2400;i++){const x=Math.random()*w,y=Math.random()*h-40,l=20+Math.random()*80;g.strokeStyle=Math.random()<.5?`rgba(255,232,205,${.05+Math.random()*.14})`:`rgba(0,0,0,${.1+Math.random()*.25})`;g.lineWidth=.6+Math.random()*.9;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+(Math.random()-.5)*10,y+l/2,x+(Math.random()-.5)*7,y+l);g.stroke()}});
+  return rimify(new T.MeshPhysicalMaterial({map:t,skinning:true,roughness:.48,sheen:new T.Color(0x554433),envMapIntensity:.6}))})}
 function mat(key,build){let m=GL.mats.get(key);if(!m){m=build();GL.mats.set(key,m)}return m}
 function shirtTex(main,hi,stripe,no,name){
   return canvasTex(512,256,(g,w,h)=>{const l=g.createLinearGradient(0,0,0,h);l.addColorStop(0,hi);l.addColorStop(.62,main);g.fillStyle=l;g.fillRect(0,0,w,h);
@@ -1304,7 +1427,34 @@ function shirtTex(main,hi,stripe,no,name){
 /* ========== Animation: a damped skeleton driven by gait and actions ========== */
 const setAct=(a,type,dur,extra={})=>{if(a)a.act={type,t0:clock,dur:reduced?dur*.7:dur,...extra}};
 const smooth=q=>q*q*(3-2*q);
-function blankPose(){return{hipX:[0,0],hipZ:[0,0],knee:[0,0],ankle:[0,0],armX:[0,0],armZ:[0,0],elbow:[0,0],pelYaw:0,chestYaw:0,leanX:0,leanZ:0,headX:0,rootY:0,rootYaw:0,rate:16}}
+/* ========== Realistic motion ========== */
+/* Gait tables from sports biomechanics: [phase, thigh forward angle, knee bend, foot pitch (toes down +)] */
+const GAITS={
+  walk:[[0,.32,.05,-.25],[.12,.22,.2,0],[.35,0,.08,0],[.55,-.22,.12,.25],[.65,-.18,.55,.6],[.78,.1,1.05,.2],[.9,.38,.5,-.12]],
+  jog:[[0,.36,.24,-.06],[.15,.08,.52,0],[.33,-.33,.22,.55],[.48,-.2,1.1,.6],[.66,.42,1.2,.15],[.82,.62,.5,-.1],[.93,.48,.3,-.08]],
+  sprint:[[0,.45,.26,0],[.12,.1,.56,0],[.3,-.42,.25,.7],[.45,-.25,1.65,.9],[.62,.58,1.95,.3],[.8,1.02,1.0,-.1],[.92,.76,.45,-.05]]
+};
+const crSpline=(p0,p1,p2,p3,t)=>.5*(2*p1+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);
+function gaitSample(k,p){
+  const n=k.length;let i=n-1;for(let m=0;m<n;m++){if(k[m][0]<=p)i=m}
+  const a=k[i],b=k[(i+1)%n],pm=k[(i-1+n)%n],pn=k[(i+2)%n],p1=i+1<n?b[0]:1+b[0],u=(p-a[0])/(p1-a[0]);
+  return [1,2,3].map(c=>crSpline(pm[c],a[c],b[c],pn[c],u));
+}
+function gaitAt(s,p){
+  const W=gaitSample(GAITS.walk,p),J=gaitSample(GAITS.jog,p),S=gaitSample(GAITS.sprint,p);
+  if(s<=.55)return W;
+  if(s<=1.25){const u=smooth((s-.55)/.7);return W.map((v,i)=>v+(J[i]-v)*u)}
+  const u=smooth(clamp((s-1.25)/1.05,0,1));return J.map((v,i)=>v+(S[i]-v)*u);
+}
+/* Keyframes: [q, values...] with eased blends between them */
+function KF(q,k){
+  if(q<=k[0][0])return k[0].slice(1);
+  for(let i=0;i<k.length-1;i++){const a=k[i],b=k[i+1];if(q<=b[0]){const u=smooth((q-a[0])/(b[0]-a[0]));return a.slice(1).map((v,j)=>v+(b[j+1]-v)*u)}}
+  return k[k.length-1].slice(1);
+}
+/* Place a leg from world angles: thigh forward, knee bend, foot pitch */
+function legPose(T,i,F,K,PH,rot=0,abd){T.hipX[i]=-F-T.leanX;T.knee[i]=K;T.ankle[i]=PH+F-K;T.hipRot[i]=rot;if(abd!==undefined)T.hipZ[i]=abd}
+function blankPose(){return{hipX:[0,0],hipZ:[0,0],hipRot:[0,0],chestX:0,knee:[0,0],ankle:[0,0],armX:[0,0],armZ:[0,0],elbow:[0,0],pelYaw:0,chestYaw:0,leanX:0,leanZ:0,headX:0,rootY:0,rootYaw:0,rate:16}}
 function animatePlayer(a,dt,ts,inMatch){
   const m=a.model;if(!m)return;
   const H=PLAYER_H*FORMATS[setup.fmt].size,dx=a.x-a.px,dz=a.y-a.py,dist=Math.hypot(dx,dz);a.px=a.x;a.py=a.y;
@@ -1312,7 +1462,7 @@ function animatePlayer(a,dt,ts,inMatch){
   const accel=(a.sp-(a.spPrev||0))/realDt;a.spPrev=a.sp;a.accS=(a.accS||0)+(accel-(a.accS||0))*Math.min(1,dt*5);
   const run=clamp(a.sp/(H*1.9),0,1),seed=a.no*1.7+(a.team==='us'?0:3);
   /* Feet follow the ground: phase comes from distance, so strides never skate */
-  a.phase=(a.phase||seed)+dist/(H*(.62+.8*run))*Math.PI*2;
+  a.phase=(a.phase||seed)+dist/(H*(.55+.45*Math.min(a.sp/H,2.3)))*Math.PI*2;
   /* Face where you run, otherwise watch the ball */
   let want=m.yaw;
   const kicking=a.act&&a.act.type==='kick'&&a.faceT!==undefined;
@@ -1323,24 +1473,29 @@ function animatePlayer(a,dt,ts,inMatch){
   let d=want-m.yaw;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;
   const turn=d*(1-Math.exp(-dt*(kicking||a.skill?14:6+run*3)));m.yaw+=turn;const yawRate=dt>0?turn/dt:0;
   const T=blankPose();
-  /* Base pose: ready stance blended with the run cycle */
+  /* Base pose: athletic stance blended into a real walk, jog or sprint */
   const crouch=a.gk?.5:.18,breathe=Math.sin(ts/820+seed);
+  const sN=a.sp/H,g=clamp(sN/.3,0,1),pp=((a.phase/(Math.PI*2))%1+1)%1;
+  const fast=clamp((sN-1.25)/1.05,0,1),mid=clamp(sN/1.25,0,1);
+  T.leanX=(.06+.1*mid+.16*fast)*g+.06*(1-g)+clamp(a.accS/(H*14),-.18,.2)+(a.gk?.24*(1-g):0);
+  const Fs=[0,0];
   [0,1].forEach(i=>{
-    const sd=i?1:-1,phi=a.phase+(i?0:Math.PI),s=Math.sin(phi),c=Math.cos(phi),swing=Math.pow(Math.max(0,c),1.15);
-    const hipIdle=-crouch-(a.gk?0:.03*breathe*sd),kneeIdle=crouch*1.9;
-    const hipRun=-s*(.5+.48*run)-.13,kneeRun=.22+swing*(.75+.95*run)+Math.max(0,-c)*.12;
-    T.hipX[i]=hipIdle+(hipRun-hipIdle)*run;T.knee[i]=kneeIdle+(kneeRun-kneeIdle)*run;
-    T.hipZ[i]=sd*((a.gk?.22:.085)*(1-run)+.02*run);
-    T.ankle[i]=(crouch*.95)*(1-run)+run*(swing*.55-Math.max(0,s)*.32-.04);
-    const aS=Math.sin(phi+Math.PI);
-    T.armX[i]=a.gk?-.85*(1-run)-aS*.6*run:(.06-aS*0)*(1-run)+aS*.86*run-.02;
-    T.elbow[i]=(a.gk?-.72:-.32)*(1-run)+(-.92-.42*Math.max(0,-aS))*run;
-    T.armZ[i]=sd*((a.gk?.42:.17)+.03*run);
+    const sd=i?1:-1,p=(pp+(i?0:.5))%1,[F,K,PH]=gaitAt(sN,p);Fs[i]=F;
+    const hipIdle=-crouch-(a.gk?0:.03*breathe*sd),kneeIdle=crouch*1.9,ankleIdle=-(T.leanX+hipIdle+kneeIdle);
+    T.hipX[i]=hipIdle+(-F-T.leanX-hipIdle)*g;T.knee[i]=kneeIdle+(K-kneeIdle)*g;T.ankle[i]=ankleIdle+(PH+F-K-ankleIdle)*g;
+    T.hipZ[i]=sd*((a.gk?.22:.085)*(1-g)+.03*g);T.hipRot[i]=sd*(.1*(1-g)+.05*g);
+    /* Arms swing against the legs, elbows bend more as the pace rises */
+    const amp=.35+.3*mid+.35*fast,v=(F-.25)*amp,armG=v>0?v*.95:v*1.6;
+    const elbowG=-(.3+1.15*mid+.3*fast)-.25*Math.max(0,-v);
+    const armIdle=a.gk?-.85:.04,elbowIdle=a.gk?-.72:-.32;
+    T.armX[i]=armIdle+(armG-armIdle)*g;T.elbow[i]=elbowIdle+(elbowG-elbowIdle)*g;
+    T.armZ[i]=sd*((a.gk?.42:.17)*(1-g)+(.12+.06*fast)*g);
   });
   const fs=Math.sin(a.phase),fc=Math.cos(a.phase*1);
-  T.pelYaw=fs*.16*run;T.chestYaw=-fs*.28*run;
-  T.leanX=.06+.2*run+clamp(a.accS/(H*14),-.18,.2)+(a.gk?.24*(1-run):0);
-  T.leanZ=clamp(-yawRate*.05,-.36,.36)*run+Math.sin(ts/1400+seed)*.012*(1-run);
+  T.pelYaw=(Fs[1]-Fs[0])*.14*g;T.chestYaw=-(Fs[1]-Fs[0])*.22*g;T.chestX=.06*fast*g;
+  /* Both feet leave the grass between strides when running */
+  {const st=.3+.03*(1-fast),q2=pp%.5;T.rootY=q2>st?.04*clamp((sN-.9)/1.4,0,1)*Math.sin(Math.PI*(q2-st)/(.5-st)):0}
+  T.leanZ=clamp(-yawRate*.05,-.36,.36)*g+Math.sin(ts/1400+seed)*.012*(1-g);
   /* Keep-ups for the hero on the home screen */
   if(a===GL.hero&&!inMatch&&GL.showHero&&!a.act){
     /* Keep-ups: each foot in turn rises to meet the ball, slightly ahead so the joints arrive on time */
@@ -1351,10 +1506,10 @@ function animatePlayer(a,dt,ts,inMatch){
   applyAction(a,T,ts);
   /* Damped joints give weight and blend every transition */
   const j=m.j,k=1-Math.exp(-dt*(T.rate===16?16+run*22:T.rate*1.2)),L=(o,key,v)=>{o[key]+=(v-o[key])*k};
-  [0,1].forEach(i=>{L(j.hipX,i,T.hipX[i]);L(j.hipZ,i,T.hipZ[i]);L(j.knee,i,T.knee[i]);L(j.ankle,i,T.ankle[i]);L(j.armX,i,T.armX[i]);L(j.armZ,i,T.armZ[i]);L(j.elbow,i,T.elbow[i])});
-  ['pelYaw','chestYaw','leanX','leanZ','headX','rootY','rootYaw'].forEach(n=>L(j,n,T[n]));
+  [0,1].forEach(i=>{L(j.hipX,i,T.hipX[i]);L(j.hipZ,i,T.hipZ[i]);L(j.hipRot,i,T.hipRot[i]);L(j.knee,i,T.knee[i]);L(j.ankle,i,T.ankle[i]);L(j.armX,i,T.armX[i]);L(j.armZ,i,T.armZ[i]);L(j.elbow,i,T.elbow[i])});
+  ['pelYaw','chestYaw','chestX','leanX','leanZ','headX','rootY','rootYaw'].forEach(n=>L(j,n,T[n]));
   [-1,1].forEach((sd,i)=>{const l=m.limbs[sd];
-    l.leg.rotation.x=j.hipX[i];l.leg.rotation.z=j.hipZ[i];l.shin.rotation.x=j.knee[i];l.ankle.rotation.x=j.ankle[i];
+    l.leg.rotation.x=j.hipX[i];l.leg.rotation.y=j.hipRot[i];l.leg.rotation.z=j.hipZ[i];l.shin.rotation.x=j.knee[i];l.ankle.rotation.x=j.ankle[i];
     l.arm.rotation.x=j.armX[i];l.arm.rotation.z=j.armZ[i];l.fore.rotation.x=j.elbow[i];
   });
   /* Pelvis height comes from the longer leg, so a foot always meets the grass */
@@ -1362,7 +1517,7 @@ function animatePlayer(a,dt,ts,inMatch){
   const hipY=Math.max(legLen(0),legLen(1))+.035;
   m.pelvis.position.y+=(hipY+.01*Math.abs(fc)*run+(a.gk?0:.002*breathe)-m.pelvis.position.y)*(1-Math.exp(-dt*38));
   m.pelvis.rotation.set(j.leanX,j.pelYaw,j.leanZ);
-  m.chest.rotation.set(.05*run+Math.sin(ts/820+seed)*.012,j.chestYaw,0);
+  m.chest.rotation.set(.05*run+j.chestX+Math.sin(ts/820+seed)*.012,j.chestYaw,0);
   if(m.headG){let hy=Math.atan2(ball.x-a.x,ball.y-a.y)-m.yaw-j.chestYaw-j.pelYaw;while(hy>Math.PI)hy-=Math.PI*2;while(hy<-Math.PI)hy+=Math.PI*2;const hk=1-Math.exp(-dt*6);m.headG.rotation.y+=(clamp(hy,-1.05,1.05)-m.headG.rotation.y)*hk;m.headG.rotation.x+=(j.headX-j.leanX*.55-m.headG.rotation.x)*hk}
   m.root.visible=inMatch||!GL.showHero||a===GL.hero;
   m.root.position.set(a.x-50,j.rootY*H,a.y-70);m.root.rotation.y=m.yaw+j.rootYaw;
@@ -1377,14 +1532,28 @@ function applyAction(a,T,ts){
   if(q>=1&&!act.hold){a.act=null;return}
   const R=1,Lg=0;
   switch(act.type){
-    case 'kick':{ /* Plant, swing through the ball, follow through */
-      const back=q<.32?smooth(q/.32):0,through=q<.32?0:clamp((q-.32)/.26,0,1),rel=q<.58?0:1-smooth((q-.58)/.42);
-      const strike=q<.32?0:(q<.58?smooth(through):rel);
-      T.hipX[R]=.95*back*(q<.32?1:0)+(q<.32?0:(.95*(1-through)-1.32*strike));T.knee[R]=q<.32?1.45*back:(1.45*(1-through)*(1-through)+.1);T.ankle[R]=.55;
-      T.hipX[Lg]=-.28;T.knee[Lg]=.42;T.ankle[Lg]=.26;
-      T.armX[Lg]=-.7*Math.max(back,strike);T.armX[R]=.75*Math.max(back,strike);T.armZ=[-.62,.62];T.chestYaw=.42*back-.4*strike;T.leanX=-.05-.18*strike+.1*back;T.leanZ=-.12;T.headX=.25;T.rate=30;break}
-    case 'trap':{const s=Math.sin(q*Math.PI);T.hipX[R]=-.62*s;T.knee[R]=.4+.3*s;T.ankle[R]=.25;T.hipX[Lg]=-.25;T.knee[Lg]=.5;T.ankle[Lg]=.25;T.armZ=[-.42,.42];T.leanX=.12;T.headX=.4*s;T.rate=24;break}
-    case 'tackle':{const s=Math.sin(q*Math.PI);T.hipX[R]=-1.15*s;T.knee[R]=.2;T.hipX[Lg]=.25*s;T.knee[Lg]=.95*s;T.leanX=.3*s;T.armZ=[-.65*s,.65*s];T.rate=26;break}
+    case 'kick':{ /* Run-up done: plant, big back-lift, strike at the moment the ball leaves, high follow-through */
+      const pw=!!act.power,R1=1,L0=0;
+      const leg=pw?KF(q,[[0,.15,.45,.1,0],[.2,-.72,1.85,.95,0],[.33,.42,.28,1.05,0],[.5,1.3,.22,.75,0],[.72,.55,.55,.2,0],[1,.15,.4,0,0]])
+                 :KF(q,[[0,.15,.45,.1,0],[.2,-.42,1.15,.2,.75],[.33,.45,.35,0,.95],[.5,.85,.3,0,.8],[.72,.45,.45,0,.3],[1,.15,.4,0,0]]);
+      const body=KF(q,[[0,.12,0,0,0,.3,0],[.2,.02,-.14,.45,-.04,.42,0],[.33,.16,-.2,-.25,.1,.36,0],[.5,.08,-.12,-.45,.05,.15,pw?.025:0],[.72,.08,-.04,-.2,0,.1,0],[1,.1,0,0,0,.2,0]]);
+      const yawK=pw?1:.6;T.leanX=body[0];T.leanZ=body[1];T.chestYaw=body[2]*yawK;T.chestX=body[3];T.headX=body[4];T.rootY=body[5];T.pelYaw=body[2]*.35*yawK;
+      legPose(T,R1,leg[0],leg[1],leg[2],leg[3],pw?.06:.12);
+      const pl=KF(q,[[0,.2,.4,0],[.2,.3,.5,0],[.33,.26,.56,0],[.5,.15,.32,.35],[.72,.2,.4,.1],[1,.2,.4,0]]);
+      legPose(T,L0,pl[0],pl[1],pl[2],-.1,-.08);
+      const arm=KF(q,[[0,0,-.2,-.4,0,.2,-.4],[.2,-.55,-1.15,-.5,.55,.5,-.6],[.33,-.3,-1.2,-.4,.2,.45,-.5],[.5,.35,-.9,-.5,-.45,.4,-.7],[.72,.1,-.5,-.4,-.1,.3,-.5],[1,0,-.2,-.35,0,.2,-.35]]);
+      const am=pw?1:.7;T.armX=[arm[0]*am,arm[3]*am];T.armZ=[arm[1]*am,arm[4]*am];T.elbow=[arm[2],arm[5]];
+      T.rate=34;break}
+    case 'trap':{ /* Meet the ball with the inside of the foot and cushion it */
+      const r=KF(q,[[0,.2,.45,0,.2],[.35,.58,.45,-.3,.65],[.7,.28,.45,0,.4],[1,.2,.42,0,.1]]);
+      T.leanX=.14;T.headX=.25+.3*Math.sin(q*Math.PI);T.chestYaw=.12*Math.sin(q*Math.PI);
+      legPose(T,1,r[0],r[1],r[2],r[3]);legPose(T,0,.22,.55,0,-.1);
+      T.armZ=[-.55,.55];T.armX=[-.2,-.1];T.elbow=[-.5,-.5];T.rate=26;break}
+    case 'tackle':{ /* Low block tackle: plant, lunge, inside of the foot across the ball */
+      const s=Math.sin(q*Math.PI),r=KF(q,[[0,.2,.45,0,0],[.45,.95,.25,0,1.0],[1,.3,.45,0,.2]]);
+      T.leanX=.12+.22*s;T.leanZ=-.1*s;T.headX=.4*s;T.rootY=-.06*s;
+      legPose(T,1,r[0],r[1],r[2],r[3],.15*s);legPose(T,0,.15,.4+.6*s,0,-.1);
+      T.armZ=[-.75*s,.6*s];T.armX=[-.3*s,.2*s];T.elbow=[-.5,-.5];T.rate=28;break}
     case 'dive':{ /* Spring, fly sideways, land, stay down a moment */
       const dir=act.dir||1,fly=q<.16?0:smooth(clamp((q-.16)/.24,0,1)),air=Math.sin(clamp((q-.14)/.46,0,1)*Math.PI);
       if(q<.16){T.knee=[1.05,1.05];T.hipX=[-.68,-.68];T.ankle=[.5,.5];T.leanX=.3}
@@ -1398,14 +1567,31 @@ function applyAction(a,T,ts){
   }
 }
 function skillPose(a,T){
-  const sk=a.skill,q=clamp((clock-sk.t0)/sk.dur,0,1),R=1,Lg=0;T.rate=26;T.rootYaw=0;
-  T.armZ=[-.58,.58];T.leanX=.16;T.headX=.42;T.hipX=[-.28,-.28];T.knee=[.55,.55];T.ankle=[.28,.28];
-  if(sk.id==='over'&&q<.62){const w=Math.sin(q*18),o=w>0?R:Lg;T.leanZ=w*.34;T.hipZ[o]=(o?1:-1)*.68*Math.abs(w);T.hipX[o]=-.72*Math.abs(w);T.knee[o]=.72;T.chestYaw=-w*.22}
-  else if(sk.id==='elastico'&&q<.5){const w=Math.sin(q/.5*Math.PI);T.hipZ[R]=.82*w;T.hipX[R]=-.56*w;T.knee[R]=.38;T.leanZ=-.34*w;T.chestYaw=-.3*w}
-  else if(sk.id==='cruyff'){const f=q<.3?Math.sin(q/.3*Math.PI):0,dr=clamp((q-.32)/.26,0,1),tn=smooth(clamp((q-.34)/.3,0,1));T.hipX[R]=-1.2*f+Math.sin(dr*Math.PI)*.85;T.knee[R]=.3+Math.sin(dr*Math.PI)*1.05;T.rootYaw=tn*Math.PI*2}
-  else if(sk.id==='roulette'){T.rootYaw=smooth(q)*Math.PI*2;T.armZ=[-.95,.95];T.hipZ=[-.32*Math.sin(q*6.28),.32*Math.sin(q*6.28)];T.leanX=.26}
-  else if(sk.id==='rainbow'&&q<.3){const f=Math.sin(q/.3*Math.PI);T.hipX[R]=1.05*f;T.knee[R]=1.55*f+.2;T.hipX[Lg]=-.22;T.leanX=.34*f;T.ankle[R]=.7}
-  else if(sk.id==='panna'&&q<.22){const f=Math.sin(q/.22*Math.PI);T.hipX[R]=-.82*f;T.knee[R]=.2}
+  const sk=a.skill,q=clamp((clock-sk.t0)/sk.dur,0,1),R=1,Lg=0;T.rate=28;T.rootYaw=0;
+  /* Low, balanced dribbling stance: knees bent, eyes on the ball, arms loose */
+  T.leanX=.18;T.headX=.42;T.chestX=.04;T.rootY=-.02;
+  legPose(T,R,.28,.6,0,.1,.06);legPose(T,Lg,.24,.6,0,-.1,-.06);
+  T.armZ=[-.45,.45];T.armX=[-.1,-.1];T.elbow=[-.6,-.6];
+  if(sk.id==='over'&&q<.62){ /* Each foot circles round the ball, hips dip to sell the fake */
+    const w=Math.sin(q*18),o=w>0?R:Lg,sd=o?1:-1,m=Math.abs(w);
+    legPose(T,o,.25+.45*m,.55+.35*m,.1,sd*.75*m,sd*.55*m);
+    T.leanZ=w*.3;T.chestYaw=-w*.25;T.pelYaw=-w*.15;T.rootY=-.03*m;T.armZ=[-.45-.3*(w<0?m:0),.45+.3*(w>0?m:0)]}
+  else if(sk.id==='elastico'&&q<.5){ /* Outside of the foot out, inside of the foot back in */
+    const k=KF(q,[[0,.28,.6,0,.1,.06],[.18,.45,.5,.15,-.55,.6],[.3,.5,.45,.15,.65,-.2],[.5,.28,.6,0,.1,.06]]);
+    legPose(T,R,k[0],k[1],k[2],k[3],k[4]);T.leanZ=-k[4]*.4;T.chestYaw=-.3*k[4];T.armZ=[-.7,.4]}
+  else if(sk.id==='cruyff'){ /* Fake a shot, drag the ball behind the standing leg, turn away */
+    const k=KF(q,[[0,.28,.6,0,.1,.06],[.15,-.55,1.5,.8,0,.08],[.3,.35,.4,.2,.9,-.25],[.42,.1,.7,0,.9,-.35],[.65,.28,.6,0,.1,.06]]);
+    legPose(T,R,k[0],k[1],k[2],k[3],k[4]);
+    const tn=smooth(clamp((q-.34)/.3,0,1));T.rootYaw=tn*Math.PI*2;T.armZ=[-.85,.5];T.armX=[-.35,.25];T.chestYaw=.3*Math.sin(q*Math.PI*1.5)}
+  else if(sk.id==='roulette'){ /* Sole on the ball, spin on the standing foot, other sole drags it on */
+    T.rootYaw=smooth(q)*Math.PI*2;const s=Math.sin(q*Math.PI*2);
+    legPose(T,R,.42+.1*s,.5,-.35,.3*s,.15);legPose(T,Lg,.2-.1*s,.65,-.2*Math.max(0,-s),-.3*s,-.15);
+    T.armZ=[-.65,.65];T.armX=[-.2,-.2];T.elbow=[-.7,-.7];T.leanX=.22;T.leanZ=.12*s}
+  else if(sk.id==='rainbow'&&q<.3){ /* Ball rolled up the calf, flicked over with the heel */
+    const f=Math.sin(q/.3*Math.PI);legPose(T,R,-.75*f+.2*(1-f),.2+1.5*f,.6*f,0,.05);legPose(T,Lg,.25,.55-.15*f,.25*f,-.1);
+    T.leanX=.32*f+.12;T.armZ=[-.7,.7];T.armX=[-.3*f,-.3*f];T.headX=.1+.3*(1-f)}
+  else if(sk.id==='panna'&&q<.22){ /* Poke it through the legs with the outside of the foot */
+    const f=Math.sin(q/.22*Math.PI);legPose(T,R,.25+.5*f,.55-.25*f,.2*f,-.5*f,.08);T.chestYaw=-.2*f;T.armZ=[-.6,.45]}
 }
 /* Pooled particles: turf, confetti */
 function buildFx(){
@@ -1439,7 +1625,7 @@ function mergeParts(parts,boneList){
     const g=q.g,gp=g.attributes.position,gn=g.attributes.normal,start=v;nm.getNormalMatrix(q.m);
     for(let k=0;k<gp.count;k++){
       P.fromBufferAttribute(gp,k).applyMatrix4(q.m);N.fromBufferAttribute(gn,k).applyMatrix3(nm).normalize();
-      pos.set([P.x,P.y,P.z],v*3);nor.set([N.x,N.y,N.z],v*3);col.set([q.c.r,q.c.g,q.c.b],v*3);si[v*4]=q.b;sw[v*4]=1;v++;
+      pos.set([P.x,P.y,P.z],v*3);nor.set([N.x,N.y,N.z],v*3);col.set([q.c.r,q.c.g,q.c.b],v*3);si[v*4]=q.b;sw[v*4]=1;if(q.w){const [b2,w2]=q.w(gp.getY(k));if(w2>0){si[v*4+1]=b2;sw[v*4]=1-w2;sw[v*4+1]=w2}}v++;
     }
     if(g.index){for(let k=0;k<g.index.count;k++)idx[i++]=g.index.getX(k)+start}else{for(let k=0;k<gp.count;k++)idx[i++]=start+k}
   });
@@ -1469,37 +1655,47 @@ function buildPlayer(a){
   let bodyGeo=playerGeoCache.get(key);
   if(!bodyGeo){
     const parts=[],C=h=>new T.Color(h).convertSRGBToLinear();
-    const P=(g,c,bone,x,y,z,o={})=>{const l=new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(o.rx||0,0,o.rz||0)),new T.Vector3(o.sx||1,o.sy||1,o.sz||1));parts.push({g,c:C(c),b:bid(bone),m:new T.Matrix4().multiplyMatrices(bone.matrixWorld,l)})};
+    const P=(g,c,bone,x,y,z,o={})=>{const l=new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(o.rx||0,0,o.rz||0)),new T.Vector3(o.sx||1,o.sy||1,o.sz||1));parts.push({g,c:C(c),b:bid(bone),w:o.w,m:new T.Matrix4().multiplyMatrices(bone.matrixWorld,l)})};
+    const SS=(e0,e1,x)=>{const t=clamp((x-e0)/(e1-e0),0,1);return t*t*(3-2*t)},WB=(b2,f)=>y=>[bid(b2),f(y)];
     P(geo.hips,shortsC,pelvis,0,PY,0,{sz:.8});
-    P(geo.collar,main,chest,0,.797+CY,0,{rx:Math.PI/2});P(geo.neck,a.skin,chest,0,.825+CY,0);
-    P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
+    P(geo.collar,main,chest,0,.797+CY,0,{rx:Math.PI/2});P(geo.neck,a.skin,chest,0,.825+CY,0,{w:WB(headG,y=>SS(-.005,.03,y)*.6)});
+    if(!lod)P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
     if(hs===3&&lod){for(let i=0;i<14;i++){const an=i*2.399,yy=.03+i*.0046,r=.084-(i%5)*.004;P(geo.curl,hairC,headG,Math.cos(an)*r,yy,Math.sin(an)*r-.012)}}
-    else P(geo.hairCap,hairC,headG,0,.004,-.006,{rx:-.28,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1});
-    if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xffffff,headG,sd*.033,.01,.077);P(geo.pupil,0x14100c,headG,sd*.033,.01,.087);P(geo.brow,hairC,headG,sd*.034,.032,.081,{rz:sd*-.15})});P(geo.nose,a.skin,headG,0,-.012,.087)}
+    else if(!lod)P(geo.hairCap,hairC,headG,0,.004,-.006,{rx:-.28,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1});
+    if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xf4f1ec,headG,sd*.032,.01,.073);P(geo.pupil,[0x3b2414,0x5a3a1c,0x2f5a7a,0x4a6a3a][a.no%4],headG,sd*.032,.01,.0815);P(geo.pupil2,0x070605,headG,sd*.032,.01,.0868);P(geo.brow,hairC,headG,sd*.033,.03,.08,{rz:sd*-.12})});P(geo.nose,a.skin,headG,0,-.017,.082,{sx:.72,sy:1.3,sz:.8})}
     [-1,1].forEach(sd=>{const l=limbs[sd];
-      P(geo.joint,main,l.arm,0,0,0);P(geo.sleeve,main,l.arm,0,0,0);P(geo.armU,a.skin,l.arm,0,0,0);
+      P(geo.joint,main,l.arm,0,0,0,{w:WB(chest,y=>SS(-.02,.036,y)*.55)});P(geo.sleeve,main,l.arm,0,0,0,{w:WB(chest,y=>SS(-.03,.004,y)*.45)});P(geo.armU,a.skin,l.arm,0,0,0,{w:y=>y<-.08?[bid(l.fore),SS(-.11,-.158,y)*.5]:[bid(chest),SS(-.02,.012,y)*.4]});
       if(a.me&&sd===-1)P(geo.band,0xffc928,l.arm,0,-.055,0);
-      P(geo.armL,gk?main:a.skin,l.fore,0,0,0);if(lod)P(geo.hand,gk?0xfafafa:a.skin,l.fore,0,-.155,0);
-      P(geo.shortLeg,shortsC,l.leg,0,-.04,0);P(geo.limbT,a.skin,l.leg,0,0,0);
-      if(lod)P(geo.knee,a.skin,l.shin,0,0,0);P(geo.limb,sockC,l.shin,0,0,0);if(lod)P(geo.sockBand,us_&&!gk?kit.main:main,l.shin,0,-.014,0);
-      P(geo.boot,bootC,l.ankle,0,-.006,.028,{sx:.82,sy:.62,sz:1.5});P(geo.sole,bootC,l.ankle,0,-.026,.028);
+      P(geo.armL,gk?main:a.skin,l.fore,0,0,0,{w:WB(l.arm,y=>SS(-.03,.006,y)*.5)});P(geo.elbow,gk?main:a.skin,l.fore,0,.002,0,{w:WB(l.arm,y=>SS(-.012,.027,y)*.5)});if(lod){P(geo.hand,gk?0xfafafa:a.skin,l.fore,0,-.155,0);P(geo.thumb,gk?0xfafafa:a.skin,l.fore,sd*-.012,-.152,.016,{rz:sd*.5})}
+      P(geo.shortLeg,shortsC,l.leg,0,-.04,0,{w:WB(pelvis,y=>SS(-.01,.064,y)*.7)});P(geo.limbT,a.skin,l.leg,0,0,0,{w:y=>y<-.11?[bid(l.shin),SS(-.16,-.222,y)*.55]:[bid(pelvis),SS(-.03,.02,y)*.5]});
+      if(lod)P(geo.knee,a.skin,l.shin,0,0,0,{w:WB(l.leg,y=>SS(-.02,.034,y)*.5)});P(geo.limb,sockC,l.shin,0,0,0,{w:y=>y<-.11?[bid(l.ankle),SS(-.17,-.218,y)*.45]:[bid(l.leg),SS(-.03,.015,y)*.5]});if(lod)P(geo.sockBand,us_&&!gk?kit.main:main,l.shin,0,-.014,0);
+      P(geo.boot,bootC,l.ankle,0,-.011,.028,{sx:.86,sy:.9,sz:1.55});P(geo.sole,0x15171c,l.ankle,0,-.027,.03);
     });
     bodyGeo=mergeParts(parts,bones);playerGeoCache.set(key,bodyGeo);
   }
-  const bodyMat=mat('skinnedBody',()=>rimify(new T.MeshStandardMaterial({vertexColors:true,skinning:true,roughness:.6,envMapIntensity:.35})));
+  const bodyMat=mat('skinnedBody',()=>rimify(new T.MeshPhysicalMaterial({vertexColors:true,skinning:true,roughness:.55,sheen:new T.Color(0x1c1814),envMapIntensity:.6})));
   const body=new T.SkinnedMesh(bodyGeo,bodyMat);
   /* The shirt keeps its own texture */
-  const shirtMat=mat(`sk${main}${stripe}${a.no}${name.toUpperCase()}`,()=>rimify(new T.MeshStandardMaterial({map:shirtTex(main,hi,stripe,a.no,name.toUpperCase()),skinning:true,roughness:.66,envMapIntensity:.45})));
+  const shirtMat=mat(`sk${main}${stripe}${a.no}${name.toUpperCase()}`,()=>rimify(new T.MeshPhysicalMaterial({map:shirtTex(main,hi,stripe,a.no,name.toUpperCase()),normalMap:fabricNormal(),normalScale:new T.Vector2(.5,.5),sheen:new T.Color(0x3a3a40),skinning:true,roughness:.7,envMapIntensity:.7})));
   if(!GL.torsoGeo){
     const g=geo.torso.clone(),n=g.attributes.position.count;g.scale(1,1,.74);g.translate(0,.46+.05+CY,0);
-    const si=new Uint16Array(n*4),sw=new Float32Array(n*4);for(let i=0;i<n;i++){si[i*4]=1;sw[i*4]=1}
+    const si=new Uint16Array(n*4),sw=new Float32Array(n*4),yb=.46+.05+CY;for(let i=0;i<n;i++){const y=g.attributes.position.getY(i)-yb,t=clamp((.6-y)/(.6-.49),0,1),w=t*t*(3-2*t)*.6;si[i*4]=1;sw[i*4]=1-w;si[i*4+1]=0;sw[i*4+1]=w}
     g.setAttribute('skinIndex',new T.BufferAttribute(si,4));g.setAttribute('skinWeight',new T.BufferAttribute(sw,4));GL.torsoGeo=g;
   }
   const shirt=new T.SkinnedMesh(GL.torsoGeo,shirtMat);
-  [body,shirt].forEach(o=>{o.castShadow=true;o.frustumCulled=false;root.add(o);o.bind(skeleton,new T.Matrix4())});
+  /* Face and hair carry their own textures */
+  const extra=[];
+  if(lod){
+    const partM=(bone,x,y,z,o={})=>new T.Matrix4().multiplyMatrices(bone.matrixWorld,new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(o.rx||0,0,o.rz||0)),new T.Vector3(o.sx||1,o.sy||1,o.sz||1)));
+    const skinPart=(g,bone,mm)=>{const c=g.clone();c.applyMatrix4(mm);const n=c.attributes.position.count,si=new Uint16Array(n*4),sw=new Float32Array(n*4),b=bid(bone);for(let i=0;i<n;i++){si[i*4]=b;sw[i*4]=1}c.setAttribute('skinIndex',new T.BufferAttribute(si,4));c.setAttribute('skinWeight',new T.BufferAttribute(sw,4));return c};
+    const hg=GL.headSkinGeo||(GL.headSkinGeo=skinPart(geo.head,headG,partM(headG,0,0,0,{sx:.96,sy:1.05})));
+    extra.push(new T.SkinnedMesh(hg,faceMat(a.skin)));
+    if(hs!==3){GL.hairGeos=GL.hairGeos||{};const hg2=GL.hairGeos[hs]||(GL.hairGeos[hs]=skinPart(geo.hairCap,headG,partM(headG,0,.01,-.012,{rx:-.52,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1})));extra.push(new T.SkinnedMesh(hg2,hairMat(hairC)))}
+  }
+  [body,shirt,...extra].forEach(o=>{o.castShadow=true;o.frustumCulled=false;root.add(o);o.bind(skeleton,new T.Matrix4())});
   const sc=PLAYER_H*FORMATS[setup.fmt].size*(a.me?1.12:1);root.scale.set(sc,sc,sc);
   GL.scene.add(root);
-  a.model={root,pelvis,chest,limbs,headG,yaw:a.team==='us'?Math.PI:0,j:{hipX:[-.2,-.2],hipZ:[0,0],knee:[.3,.3],ankle:[.1,.1],armX:[0,0],armZ:[-.17,.17],elbow:[-.3,-.3],pelYaw:0,chestYaw:0,leanX:.06,leanZ:0,headX:0,rootY:0,rootYaw:0}};
+  a.model={root,pelvis,chest,limbs,headG,yaw:a.team==='us'?Math.PI:0,j:{hipX:[-.2,-.2],hipZ:[0,0],hipRot:[0,0],chestX:0,knee:[.3,.3],ankle:[.1,.1],armX:[0,0],armZ:[-.17,.17],elbow:[-.3,-.3],pelYaw:0,chestYaw:0,leanX:.06,leanZ:0,headX:0,rootY:0,rootYaw:0}};
   a.sp=0;a.phase=a.no*1.7;
 }
 function GL_syncTeams(){
@@ -1600,13 +1796,15 @@ function GL_render(ts){
     if(avg>.0215&&!window.__noAdapt&&GL.stage<4){GL.stage++;GL.checkAt=clock+1200;
       if(GL.stage===1&&GL.pixel>1.5){GL.pixel=1.5;GL.r.setPixelRatio(GL.pixel);GL_resize()}
       else if(GL.stage===2&&GL.bloom)GL.bloom.enabled=false;
-      else if(GL.stage===3&&GL.blades)GL.blades.visible=false;
+      else if(GL.stage===3&&GL.blades){GL.blades.visible=false;if(GL.cones)GL.cones.visible=false}
       else if(GL.stage===4&&GL.pixel>1.15){GL.pixel=1.15;GL.r.setPixelRatio(GL.pixel);GL_resize()}
     }
   }
   GL.uTime.value=ts/1000;GL.jump=Math.max(0,GL.jump-dt*.4);GL.uJump.value=.12+GL.jump;
   GL.ledTex.offset.x=(ts/26000)%1;GL.flags.forEach((f,i)=>{f.rotation.y=Math.sin(ts/300+i)*.4});
   const inMatch=GL.mode==='match',all=GL.models;
+  /* Beams belong to the stadium views; seen from above in a match they draw lines on the grass */
+  if(GL.cones)GL.cones.visible=!inMatch&&GL.stage<3;
   /* Four-way floodlight shadows */
   if(GL.shadowMesh&&GL.stage<5){const S0=GL.shadowO||(GL.shadowO=new T.Object3D());let n=0;const dirs=[[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8]];
     all.forEach(a=>{const h=PLAYER_H*FORMATS[setup.fmt].size;dirs.forEach(d=>{S0.position.set(a.x-50+d[0]*h*.3,0,a.y-70+d[1]*h*.3);S0.rotation.set(0,Math.atan2(d[0],d[1]),0);S0.scale.set(h*.26,1,h*.72);S0.updateMatrix();GL.shadowMesh.setMatrixAt(n++,S0.matrix)});S0.position.set(a.x-50,0,a.y-70);S0.rotation.set(0,0,0);S0.scale.set(h*.42,1,h*.42);S0.updateMatrix();GL.shadowMesh.setMatrixAt(n++,S0.matrix)});
@@ -1650,7 +1848,7 @@ function GL_render(ts){
   if(GL.farNet){const q=GL.netHit>clock?(GL.netHit-clock)/500:0;GL.farNet.scale.z=1+q*.55;GL.farNet.scale.x=1+q*.06}
   if(GL.nearNet){const q=GL.netHitNear>clock?(GL.netHitNear-clock)/500:0;GL.nearNet.scale.z=1+q*.55;GL.nearNet.scale.x=1+q*.06}
   if(GL.trophy.visible){GL.trophySpin+=dt*.9;const tg=GL.trophy.children[0];tg.rotation.y=GL.trophySpin;const k=Math.min(1,GL.trophy.scale.x+dt*3);GL.trophy.scale.setScalar(k);}
-  if(GL.comp){GL.grade.uniforms.uFlash.value=GL.flashAmt*.22;GL.comp.render()}else GL.r.render(GL.scene,cam);
+  if(GL.comp){GL.grade.uniforms.uFlash.value=GL.flashAmt*.22;GL.grade.uniforms.uT.value=(ts%10000)/1000;GL.comp.render()}else GL.r.render(GL.scene,cam);
   GL_health();
 }
 function drawCoachMarks(){
@@ -2400,7 +2598,7 @@ async function kick(tx,ty,dur,h=2,opts={}){
   if(kicker&&GL.on){
     /* Turn to the target, swing, and only then does the ball leave */
     kicker.faceT=Math.atan2(tx-kicker.x,ty-kicker.y);
-    setAct(kicker,'kick',opts.power?500:430);await wait(opts.power?165:140);
+    setAct(kicker,'kick',opts.power?500:430,{power:!!opts.power});await wait(opts.power?165:140);
     turfBurst(ball.x,ball.y,opts.power?12:5);
   }
   ball.owner=null;ball.from={x:ball.x,y:ball.y};ball.to={x:tx,y:ty};ball.h=h;sfx.kick();await tween(ball,{x:tx,y:ty},dur,'out');ball.from=ball.to=null;ball.z=0}
