@@ -823,8 +823,8 @@ const LIVE_CUPS=[
   C('lvgo25','Jouw ploeg maakt 25 goals in Live','Ton équipe marque 25 buts en direct',p=>LV(p).goals,25),
   C('lvmy10','Maak zelf 10 goals in Live','Marque toi-même 10 buts en direct',p=>LV(p).myGoals,10)]},
  {id:'lv-chain',tier:['Live','Direct'],n:['Kettingreactie','Réaction en Chaîne'],col:['#ffcf8f','#d9731a'],ch:[
-  C('lvs6','Kies 6 keer na elkaar goed in één Live match','Choisis bien 6 fois de suite dans un Match en direct',p=>LV(p).chain,6),
-  C('lvs9','Kies 9 keer na elkaar goed','Choisis bien 9 fois de suite',p=>LV(p).chain,9)]},
+  C('lvs6','Kies 8 keer na elkaar goed in één Live match','Choisis bien 8 fois de suite dans un Match en direct',p=>LV(p).chain,8),
+  C('lvs9','Kies 14 keer na elkaar goed','Choisis bien 14 fois de suite',p=>LV(p).chain,14)]},
  {id:'lv-half',tier:['Live','Direct'],n:['Sterke Tweede Helft','Seconde Période Parfaite'],col:['#ffd0e8','#c2417f'],ch:[
   C('lvh1','Alles goed in de tweede helft','Tout bon en seconde période',p=>LV(p).half2,1),
   C('lvh3','Doe het 3 keer','Fais-le 3 fois',p=>LV(p).half2,3)]},
@@ -848,7 +848,7 @@ const LIVE_CUPS=[
   C('lvpf1','Alles goed in een hele Live match','Tout bon pendant tout un Match en direct',p=>LV(p).perfect,1),
   C('lvpf3','Doe het 3 keer op snelheid Match','Fais-le 3 fois en vitesse Match',p=>LV(p).perfectFast,3)]},
  {id:'lv-flash',hard:true,tier:['Zeer moeilijk','Très difficile'],n:['Bliksemmatch','Match Éclair'],col:['#d3b5ff','#5b21b6'],ch:[
-  C('lvfl1','10 keer goed en snel in één Live match (snelheid Match)','10 fois bien et vite dans un Match en direct (vitesse Match)',p=>LV(p).flash,1)]},
+  C('lvfl1','15 keer goed en snel in één Live match (snelheid Match)','15 fois bien et vite dans un Match en direct (vitesse Match)',p=>LV(p).flash,1)]},
  {id:'lv-season',hard:true,tier:['Zeer moeilijk','Très difficile'],n:['Een Heel Seizoen','Une Saison Entière'],col:['#ffb37a','#d9540e'],ch:[
   C('lvm30','Speel 30 Live matchen','Joue 30 Matchs en direct',p=>LV(p).m,30),
   C('lvw20','Win 20 Live matchen','Gagne 20 Matchs en direct',p=>LV(p).w,20),
@@ -894,7 +894,7 @@ const LEVELS=[
  {n:['Echte match','Vrai match'],s:['Tik zelf waar je gaat staan','Touche toi-même où te placer'],time:[4,2.8]},
  {n:['Live match','Match en direct'],s:['Een hele match: de bal wisselt, jij blijft beslissen','Un match entier : le ballon change de camp, tu enchaînes'],time:[4.2,2.6],live:true}
 ];
-const LIVE_N=12;
+const LIVE_N=20;
 const ACTIONS=8;
 
 /* ========== Helpers ========== */
@@ -2426,7 +2426,7 @@ function teamShift(c,carrier){
 /* ========== Live match: one long match, the ball keeps changing teams ========== */
 let toastTimer=0;
 function liveToast(txt,kind){const el=$('liveToast');el.textContent=txt;el.className='live-toast '+kind;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},kind==='bad'?2300:1500)}
-const liveMinute=k=>k<LIVE_N/2?2+k*4:27+(k-LIVE_N/2)*4;
+const liveMinute=k=>{const h=LIVE_N/2,step=25/h;return k<h?Math.round(1+k*step):Math.round(26+(k-h)*step)};
 function pickLive(slot,s,target){
   const pool=SITS.filter(x=>x.role===slot.role&&x.s===s&&(!x.only5||setup.fmt===5));
   const flips=slot.x>50?[true]:slot.x<50?[false]:[false,true];
@@ -2456,7 +2456,7 @@ async function runLive(my){
   $('liveToast').hidden=true;setDock('');sfx.whistle();banner(t('Einde!','Fin du match !'),true);roar(1.2,.08);
   await wait(1600);if(my!==token)return;hideBanner();
   /* Look back at the mistakes, step by step */
-  const review=G.demos.slice(0,2);
+  const review=G.demos.slice(0,3);
   for(const d of review){view={};ball.fall=0;banner(t('Even terugkijken','On revoit l’action'));await wait(900);if(my!==token)return;hideBanner();await coachSession(d,my);if(my!==token)return}
   view={};finish();
 }
@@ -2826,7 +2826,7 @@ function recordMatch(starsWon){
     L.m++;if(win)L.w++;L.goals+=G.us;L.myGoals+=X.myGoals;if(G.them===0)L.clean++;L.good+=G.open+G.dicht;L.turnGood+=X.turnGood;L.counterGoals+=X.counterGoals;
     L.chain=Math.max(L.chain,G.best);if(X.myGoals>=3)L.hat++;if(win&&X.trailed)L.comeback++;if(diff>=3)L.big3++;if(diff>=5)L.big5++;
     if(G.n&&G.open+G.dicht===G.n){L.perfect++;if(tempo!=='slow')L.perfectFast++}
-    if(tempo!=='slow'&&G.fast>=10)L.flash++;
+    if(tempo!=='slow'&&G.fast>=15)L.flash++;
     if(X.half2n>=LIVE_N/2&&X.half2===X.half2n)L.half2++;
     L.run=G.us>=G.them?L.run+1:0;L.runBest=Math.max(L.runBest,L.run);
     if(win)addUnique(L.fmtWin,setup.fmt);
