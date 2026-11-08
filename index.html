@@ -339,6 +339,11 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .player{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;text-align:left;min-height:68px;padding:10px 14px;background:#0a1529dd;border:1px solid #ffffff33;border-radius:14px;color:var(--chalk)}
 .player-kit{width:34px;height:34px;border-radius:50%;border:2px solid #ffffff99}
 .player strong{display:block;font-size:22px;overflow-wrap:anywhere}.player small{font-size:15px;color:var(--muted)}.player>b{font-size:22px}
+.live-toast{position:absolute;left:50%;top:44px;transform:translateX(-50%);max-width:92%;padding:7px 14px;border-radius:10px;font-weight:800;font-size:16px;line-height:1.25;text-align:center;pointer-events:none;z-index:3;box-shadow:0 4px 14px #0008;animation:toastIn .22s ease-out}
+.live-toast.good{background:#16a34a;color:#fff}.live-toast.bad{background:#dc2626;color:#fff}.live-toast.close{background:#f2c230;color:#141414}.live-toast.warn{background:#f97316;color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+.level.live{border-color:#ff5a3c;box-shadow:0 0 18px #ff5a3c55}
+.new-tag{font-style:normal;font-size:11px;font-weight:800;background:#ff5a3c;color:#fff;border-radius:6px;padding:2px 6px;margin-left:7px;vertical-align:middle;letter-spacing:.04em}
 body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,env(safe-area-inset-bottom,0px));-webkit-text-size-adjust:100%}
 </style>
 </head>
@@ -432,6 +437,7 @@ body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,
     <canvas id="cv" aria-label="Voetbalveld. Tik waar jij moet staan." data-fr-aria="Terrain de foot. Touche l’endroit où te placer."></canvas>
     <div class="poss" id="poss" hidden><i></i><span id="possText"></span></div>
     <div class="banner" id="banner" hidden></div>
+    <div class="live-toast" id="liveToast" role="status" hidden></div>
   </div>
   <div class="dock">
     <p class="prompt" id="prompt"></p>
@@ -720,7 +726,8 @@ const KITS=[
 let kit=KITS[0];
 /* ========== Challenges and trophies ========== */
 const blankPos=()=>({m:0,w:0,good:0,goals:0,clean:0,l3stars:0,l3perfect:0,l3flash:0});
-const blankProgress=()=>({posStats:{},history:[],days:[],bestDays:0,rtSum:0,rtN:0,total:0,skills:[],skillCount:0,byPos:{},winRun:0,bestWinRun:0,m5:0,good5:0,m8l3:0,m11l3:0,matches:0,wins:0,good:0,open:0,dicht:0,goals:0,fast:0,streak:0,clean:0,perfect:0,openP:0,dichtP:0,roles:[],positions:[],formats:[],threeStars:[],l3wins:0,l3match:0,done:[],cups:[]});
+const blankLive=()=>({m:0,w:0,goals:0,myGoals:0,clean:0,good:0,turnGood:0,counterGoals:0,chain:0,hat:0,comeback:0,big3:0,big5:0,perfect:0,perfectFast:0,flash:0,half2:0,run:0,runBest:0,pos:[],posWin:[],fmtWin:[],byPos:{}});
+const blankProgress=()=>({live:blankLive(),posStats:{},history:[],days:[],bestDays:0,rtSum:0,rtN:0,total:0,skills:[],skillCount:0,byPos:{},winRun:0,bestWinRun:0,m5:0,good5:0,m8l3:0,m11l3:0,matches:0,wins:0,good:0,open:0,dicht:0,goals:0,fast:0,streak:0,clean:0,perfect:0,openP:0,dichtP:0,roles:[],positions:[],formats:[],threeStars:[],l3wins:0,l3match:0,done:[],cups:[]});
 const C=(id,nl,fr,cur,goal)=>({id,nl,fr,cur,goal});
 const CUPS=[
  {id:'start',n:['Eerste Stap','Premiers Pas'],col:['#e8a36b','#9c5a2b'],ch:[
@@ -809,6 +816,72 @@ const SKILL_CUPS=[
   C('sk100','Doe 150 gestes','Fais 150 gestes',p=>p.skillCount,150)]}
 ];
 ALL_CUPS.push(...SKILL_CUPS);
+const LV=p=>p.live||blankLive(),LP=(p,k)=>(LV(p).byPos||{})[k]||{m:0,w:0,good:0,clean:0,goals:0};
+const LIVE_CUPS=[
+ {id:'lv-kick',tier:['Live','Direct'],n:['Aftrap','Coup d’Envoi'],col:['#ffb59e','#e0482a'],ch:[
+  C('lvm1','Speel een Live match','Joue un Match en direct',p=>LV(p).m,1),
+  C('lvg10','Kies 10 keer goed in Live','Choisis bien 10 fois en direct',p=>LV(p).good,10),
+  C('lvgo1','Maak een goal in Live','Marque un but en direct',p=>LV(p).goals,1)]},
+ {id:'lv-win',tier:['Live','Direct'],n:['Eerste Zege','Première Victoire'],col:['#ffe067','#c78f00'],ch:[
+  C('lvw1','Win een Live match','Gagne un Match en direct',p=>LV(p).w,1),
+  C('lvw5','Win 5 Live matchen','Gagne 5 Matchs en direct',p=>LV(p).w,5)]},
+ {id:'lv-switch',tier:['Live','Direct'],n:['Snelle Omschakeling','Roi de la Transition'],col:['#9fd2ff','#2a6be2'],ch:[
+  C('lvt10','Kies 10 keer goed net nadat de bal van ploeg wisselt','Choisis bien 10 fois juste après que le ballon change de camp',p=>LV(p).turnGood,10),
+  C('lvt50','Doe het 50 keer','Fais-le 50 fois',p=>LV(p).turnGood,50)]},
+ {id:'lv-counter',tier:['Live','Direct'],n:['Bliksemcounter','Contre Éclair'],col:['#d3b5ff','#7a45d6'],ch:[
+  C('lvc1','Scoor na een bal die jullie net terugwonnen','Marque juste après avoir récupéré le ballon',p=>LV(p).counterGoals,1),
+  C('lvc10','Doe het 10 keer','Fais-le 10 fois',p=>LV(p).counterGoals,10)]},
+ {id:'lv-wall',tier:['Live','Direct'],n:['Betonnen Muur','Mur de Béton'],col:['#b6f6f7','#2f9396'],ch:[
+  C('lvcs1','Speel een Live match zonder tegengoal','Joue un Match en direct sans but encaissé',p=>LV(p).clean,1),
+  C('lvcs5','Doe het 5 keer','Fais-le 5 fois',p=>LV(p).clean,5)]},
+ {id:'lv-goals',tier:['Live','Direct'],n:['Goalmachine','Machine à Buts'],col:['#a4f2b4','#2c9455'],ch:[
+  C('lvgo25','Jouw ploeg maakt 25 goals in Live','Ton équipe marque 25 buts en direct',p=>LV(p).goals,25),
+  C('lvmy10','Maak zelf 10 goals in Live','Marque toi-même 10 buts en direct',p=>LV(p).myGoals,10)]},
+ {id:'lv-chain',tier:['Live','Direct'],n:['Kettingreactie','Réaction en Chaîne'],col:['#ffcf8f','#d9731a'],ch:[
+  C('lvs6','Kies 6 keer na elkaar goed in één Live match','Choisis bien 6 fois de suite dans un Match en direct',p=>LV(p).chain,6),
+  C('lvs9','Kies 9 keer na elkaar goed','Choisis bien 9 fois de suite',p=>LV(p).chain,9)]},
+ {id:'lv-half',tier:['Live','Direct'],n:['Sterke Tweede Helft','Seconde Période Parfaite'],col:['#ffd0e8','#c2417f'],ch:[
+  C('lvh1','Alles goed in de tweede helft','Tout bon en seconde période',p=>LV(p).half2,1),
+  C('lvh3','Doe het 3 keer','Fais-le 3 fois',p=>LV(p).half2,3)]},
+ {id:'lv-comeback',tier:['Moeilijk','Difficile'],n:['Remontada','Remontada'],col:['#ff9d8f','#b52a1c'],ch:[
+  C('lvcb1','Win een Live match na een achterstand','Gagne un Match en direct après avoir été mené',p=>LV(p).comeback,1),
+  C('lvcb3','Doe het 3 keer','Fais-le 3 fois',p=>LV(p).comeback,3)]},
+ {id:'lv-big',tier:['Moeilijk','Difficile'],n:['Grote Zege','Large Victoire'],col:['#fff1a8','#e0a800'],ch:[
+  C('lvb3','Win met 3 goals verschil','Gagne avec 3 buts d’écart',p=>LV(p).big3,1),
+  C('lvb5','Win met 5 goals verschil','Gagne avec 5 buts d’écart',p=>LV(p).big5,1)]},
+ {id:'lv-hat',tier:['Moeilijk','Difficile'],n:['Hattrick','Triplé'],col:['#e8a36b','#9c5a2b'],ch:[
+  C('lvhat1','Maak zelf 3 goals in één Live match','Marque toi-même 3 buts dans un Match en direct',p=>LV(p).hat,1)]},
+ {id:'lv-unbeaten',tier:['Moeilijk','Difficile'],n:['Ongeslagen','Invaincu'],col:['#e4eaf2','#8d97a8'],ch:[
+  C('lvu5','Verlies 5 Live matchen na elkaar niet','Ne perds pas 5 Matchs en direct de suite',p=>LV(p).runBest,5),
+  C('lvu10','Verlies 10 Live matchen na elkaar niet','Ne perds pas 10 Matchs en direct de suite',p=>LV(p).runBest,10)]},
+ {id:'lv-everywhere',tier:['Moeilijk','Difficile'],n:['Overal Inzetbaar','Joueur Partout'],col:['#a4f2b4','#0f7a4d'],ch:[
+  C('lvp5','Speel Live op alle 5 plekken van 5 tegen 5','Joue en direct aux 5 postes du 5 contre 5',p=>LV(p).pos.length,5),
+  C('lvpw5','Win Live op alle 5 plekken','Gagne en direct aux 5 postes',p=>LV(p).posWin.length,5)]},
+ {id:'lv-fields',tier:['Moeilijk','Difficile'],n:['Elk Veld','Tous les Terrains'],col:['#9fd2ff','#1d4fa8'],ch:[
+  C('lvf3','Win Live in 5, 8 en 11 tegen 11','Gagne en direct à 5, 8 et 11 contre 11',p=>LV(p).fmtWin.length,3)]},
+ {id:'lv-perfect',hard:true,tier:['Zeer moeilijk','Très difficile'],n:['Perfecte Match','Match Parfait'],col:['#fff6c2','#d99a00'],ch:[
+  C('lvpf1','Alles goed in een hele Live match','Tout bon pendant tout un Match en direct',p=>LV(p).perfect,1),
+  C('lvpf3','Doe het 3 keer op snelheid Match','Fais-le 3 fois en vitesse Match',p=>LV(p).perfectFast,3)]},
+ {id:'lv-flash',hard:true,tier:['Zeer moeilijk','Très difficile'],n:['Bliksemmatch','Match Éclair'],col:['#d3b5ff','#5b21b6'],ch:[
+  C('lvfl1','10 keer goed en snel in één Live match (snelheid Match)','10 fois bien et vite dans un Match en direct (vitesse Match)',p=>LV(p).flash,1)]},
+ {id:'lv-season',hard:true,tier:['Zeer moeilijk','Très difficile'],n:['Een Heel Seizoen','Une Saison Entière'],col:['#ffb37a','#d9540e'],ch:[
+  C('lvm30','Speel 30 Live matchen','Joue 30 Matchs en direct',p=>LV(p).m,30),
+  C('lvw20','Win 20 Live matchen','Gagne 20 Matchs en direct',p=>LV(p).w,20),
+  C('lvt150','150 keer goed na een balwissel','150 fois bien après un changement de ballon',p=>LV(p).turnGood,150)]}
+];
+const LIVE_POS=[
+ {k:'gk',n:['Live Doelman','Gardien en Direct'],ch:[['lgk-cs','Speel 3 Live matchen zonder tegengoal als doelman','Joue 3 Matchs en direct sans but encaissé comme gardien',q=>q.clean,3]]},
+ {k:'d',n:['Live Verdediger','Défenseur en Direct'],ch:[['ld-cs','Speel 3 Live matchen zonder tegengoal als verdediger','Joue 3 Matchs en direct sans but encaissé comme défenseur',q=>q.clean,3]]},
+ {k:'l',n:['Live Linkerflank','Ailier Gauche en Direct'],ch:[['ll-go','Maak 5 goals als linkerflank in Live','Marque 5 buts comme ailier gauche en direct',q=>q.goals,5]]},
+ {k:'r',n:['Live Rechterflank','Ailier Droit en Direct'],ch:[['lr-go','Maak 5 goals als rechterflank in Live','Marque 5 buts comme ailier droit en direct',q=>q.goals,5]]},
+ {k:'s',n:['Live Spits','Attaquant en Direct'],ch:[['ls-go','Maak 10 goals als spits in Live','Marque 10 buts comme attaquant en direct',q=>q.goals,10]]}
+];
+LIVE_POS.forEach(x=>LIVE_CUPS.push({id:'lv-p-'+x.k,group:'livepos',tier:['5 tegen 5','5 contre 5'],n:x.n,col:['#ffb59e','#c2410c'],ch:[
+  C('lv-'+x.k+'-w3','Win 3 Live matchen op deze plek','Gagne 3 Matchs en direct à ce poste',p=>LP(p,x.k).w,3),
+  C('lv-'+x.k+'-g30','Kies 30 keer goed op deze plek in Live','Choisis bien 30 fois à ce poste en direct',p=>LP(p,x.k).good,30),
+  ...x.ch.map(([id,nl,fr,f,g])=>C(id,nl,fr,p=>f(LP(p,x.k)),g))]}));
+const LIVE_LEGEND={id:'lv-legend',hard:true,n:['Koning van de Live Match','Roi du Match en Direct'],col:['#ffe6a8','#ff5a3c']};
+ALL_CUPS.push(...LIVE_CUPS);
 const FINAL_CUP={id:'final',n:['Find the Space Cup','Find the Space Cup'],col:['#fff1a8','#e0a800']};
 const cupWon=(cup,p)=>cup.ch.every(c=>c.cur(p)>=c.goal);
 function cupSVG(col,won=true){
@@ -833,8 +906,10 @@ function directionHint(from,to){
 const LEVELS=[
  {n:['Open of dicht?','Ouvrir ou fermer ?'],s:['Kijk wie de bal heeft en kies','Regarde qui a le ballon et choisis'],time:[3,2.2]},
  {n:['Kies je plek','Choisis ta place'],s:['Tik op de beste ring','Touche le meilleur cercle'],time:[4,3]},
- {n:['Echte match','Vrai match'],s:['Tik zelf waar je gaat staan','Touche toi-même où te placer'],time:[4,2.8]}
+ {n:['Echte match','Vrai match'],s:['Tik zelf waar je gaat staan','Touche toi-même où te placer'],time:[4,2.8]},
+ {n:['Live match','Match en direct'],s:['Een hele match: de bal wisselt, jij blijft beslissen','Un match entier : le ballon change de camp, tu enchaînes'],time:[4.2,2.6],live:true}
 ];
+const LIVE_N=12;
 const ACTIONS=8;
 
 /* ========== Helpers ========== */
@@ -1895,9 +1970,9 @@ function shape(slots,attackUp,possess,bx,by){
     return{x:clamp(x,6,94),y:inv(clamp(y,12,128))};
   });
 }
-function compose(sit,slot){
+function compose(sit,slot,flipWanted){
   const f=FORMATS[setup.fmt];
-  const flip=slot.x>50||(slot.x===50&&Math.random()<.5);
+  const flip=flipWanted!==undefined?flipWanted:slot.x>50||(slot.x===50&&Math.random()<.5);
   /* Every moment shifts a little, so the same idea never looks exactly the same twice. */
   const keeperBall=sit.ball[1]>126||sit.ball[1]<14,gkRole=slot.role==='GK';
   const dx=wob(gkRole?2:keeperBall?0:6),dy=gkRole||keeperBall?0:wob(5);
@@ -2222,7 +2297,8 @@ function renderLevels(){
   const box=$('levels');box.innerHTML='';
   LEVELS.forEach((l,i)=>{
     const n=store.get(starKey(setup.fmt,i),0),b=document.createElement('button');b.className='level';b.id='level'+i;
-    b.innerHTML=`<span class="num">${i+1}</span><span><strong>${p2(l.n)}</strong><small>${p2(l.s)}</small></span><span class="stars" aria-label="${n}/3">${starText(n)}</span>`;
+    if(l.live)b.classList.add('live');
+    b.innerHTML=`<span class="num">${i+1}</span><span><strong>${p2(l.n)}${l.live?`<em class="new-tag">${t('NIEUW','NOUVEAU')}</em>`:''}</strong><small>${p2(l.s)}</small></span><span class="stars" aria-label="${n}/3">${starText(n)}</span>`;
     b.onclick=()=>startMatch(i);box.appendChild(b);
   });
 }
@@ -2302,12 +2378,13 @@ async function startMatch(lv){
   const my=++token;tweens.forEach(x=>x.res());tweens=[];
   try{speechSynthesis.cancel()}catch(e){}
   GL.mode='match';buildTeams();clearScene();bg=null;GL.showHero=false;if(GL.on){GL_setMode('match');GL.checkAt=clock+2400;GL.badChecks=0;GL_updateScreen();GL.camPos.set(70,70,150);GL.camLook.set(0,4,0)}
-  G={lv,us:0,them:0,i:0,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,miss:[],missDetail:[],log:[],list:pickSituations()};$('streak').hidden=true;
+  G={lv,us:0,them:0,i:0,n:ACTIONS,nOpen:ACTIONS/2,nDicht:ACTIONS/2,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,miss:[],missDetail:[],log:[],list:LEVELS[lv].live?[]:pickSituations()};$('liveToast').hidden=true;$('streak').hidden=true;
   $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
   audio();startAmbience();updateScore();setBar(1);setDock('');show('play');
   const sel=slotOf();$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
   banner(roleName(sel));roar(1.2,.06);sfx.whistle();
   await wait(1100);if(my!==token)return;hideBanner();
+  if(LEVELS[lv].live){await runLive(my);return}
   for(G.i=0;G.i<G.list.length;G.i++){await playAction(G.list[G.i],my);if(my!==token)return}
   if(my===token)finish();
 }
@@ -2354,15 +2431,158 @@ function judge(c,a){
   let near=null,best=18;(c.taken||[]).forEach(x=>{const v=dist(p,x);if(v<best){best=v;near=x.tip}});c.decoys.forEach(x=>{const v=dist(p,x);if(v<best){best=v;near=x.tip}});
   return{res:'wrong',spot:p,best:sol,tip:near||(c.isOpen?['Zoek meer ruimte, ver van de bal.','Cherche plus d’espace, loin du ballon.']:['Kom terug. Sta tussen de bal en ons doel.','Reviens. Place-toi entre le ballon et notre but.'])};
 }
+function teamShift(c,carrier){
+  us.forEach((m,i)=>{
+    if(m===carrier||m===me||m.gk||i===c.presser)return;
+    if(c.isOpen)runTo(m,clamp(50+(m.x-50)*1.18,5,95),clamp(m.y-5,10,128),600,1100);
+    else{const cx=50+(ball.x-50)*.3;runTo(m,cx+(m.x-cx)*.82,clamp(m.y+4,10,128),600,1100)}
+  });
+}
+/* ========== Live match: one long match, the ball keeps changing teams ========== */
+let toastTimer=0;
+function liveToast(txt,kind){const el=$('liveToast');el.textContent=txt;el.className='live-toast '+kind;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},kind==='bad'?2300:1500)}
+const liveMinute=k=>k<LIVE_N/2?2+k*4:27+(k-LIVE_N/2)*4;
+function pickLive(slot,s,target){
+  const pool=SITS.filter(x=>x.role===slot.role&&x.s===s&&(!x.only5||setup.fmt===5));
+  const flips=slot.x>50?[true]:slot.x<50?[false]:[false,true];
+  let best=null,bs=1e9;
+  pool.forEach(sit=>flips.forEach(fl=>{const bx=fl?100-sit.ball[0]:sit.ball[0],sc=Math.hypot(bx-target[0],(sit.ball[1]-target[1])*.8)+Math.random()*10+(G.used.get(sit)||0)*34;if(sc<bs){bs=sc;best={sit,flip:fl}}}));
+  G.used.set(best.sit,(G.used.get(best.sit)||0)+1);return best;
+}
+async function runLive(my){
+  const slot=slotOf(),half=LIVE_N/2;
+  Object.assign(G,{n:0,nOpen:0,nDicht:0,used:new Map(),demos:[],live:{turnGood:0,turnN:0,counterGoals:0,myGoals:0,trailed:false,half2:0,half2n:0}});
+  const firstBall=Math.random()<.5?'open':'dicht';
+  let st={poss:firstBall,target:firstBall==='open'?[50,76]:[50,62],turn:false,counter:false};
+  for(let k=0;k<LIVE_N;k++){
+    if(k===half){
+      /* Half time: a short break, then the other team kicks off */
+      $('liveToast').hidden=true;setDock('');sfx.whistle();banner(t('Rust','Mi-temps'),true);
+      us.forEach(a=>{if(!a.gk)runTo(a,a.x,clamp(a.y+6,10,128),700,1200)});
+      await wait(1700);if(my!==token)return;hideBanner();
+      const p2nd=firstBall==='open'?'dicht':'open';st={poss:p2nd,target:p2nd==='open'?[50,76]:[50,62],turn:false,counter:false};
+      sfx.whistle();
+    }
+    G.i=k;$('chip').textContent=`${liveMinute(k)}' · ${setup.name} · ${roleName(slot)}`;
+    const pick=pickLive(slot,st.poss,st.target);
+    st=await liveDecision(pick,st,my);if(my!==token||!st)return;
+    if(G.them>G.us)G.live.trailed=true;
+  }
+  $('liveToast').hidden=true;setDock('');sfx.whistle();banner(t('Einde!','Fin du match !'),true);roar(1.2,.08);
+  await wait(1600);if(my!==token)return;hideBanner();
+  /* Look back at the mistakes, step by step */
+  const review=G.demos.slice(0,2);
+  for(const d of review){view={};ball.fall=0;banner(t('Even terugkijken','On revoit l’action'));await wait(900);if(my!==token)return;hideBanner();await coachSession(d,my);if(my!==token)return}
+  view={};finish();
+}
+async function liveDecision(pick,st,my){
+  const slot=slotOf(),k=G.i;
+  view={};hideBanner();ball.fall=0;ball.from=ball.to=null;ball.z=0;
+  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(k/(LIVE_N-1)))*(tempo==='slow'?1.7:1)*1000;
+  setBar(1);
+  const c=compose(pick.sit,slot,pick.flip);c.sit=pick.sit;
+  c.pos.us.forEach((o,i)=>{runTo(us[i],o.x,o.y)});
+  c.pos.them.forEach((o,i)=>{runTo(them[i],o.x,o.y)});
+  const carrier=c.isOpen?us[c.carrier]:them[c.carrier];
+  const cp=c.pos[c.isOpen?'us':'them'][c.carrier];
+  /* Keep the ball with the team that has it: a pass on the grass to the new carrier */
+  const prev=ball.owner;ball.owner=null;
+  runTo(carrier,cp.x,cp.y,360,820);
+  const far=Math.hypot(ball.x-c.ball[0],ball.y-c.ball[1]);
+  if(prev&&GL.on&&prev!==carrier){prev.faceT=Math.atan2(c.ball[0]-prev.x,c.ball[1]-prev.y);setAct(prev,'kick',380)}
+  ball.from={x:ball.x,y:ball.y};ball.to={x:c.ball[0],y:c.ball[1]};ball.h=Math.min(2.4,far*.04);
+  await tween(ball,{x:c.ball[0],y:c.ball[1]},clamp(far*14,420,900),'out');ball.from=ball.to=null;ball.z=0;if(my!==token)return null;
+  ball.owner=carrier;possShown=null;
+  const who=c.isOpen?t('WIJ hebben de bal!','ON a le ballon !'):t('ZIJ hebben de bal!','ILS ont le ballon !');
+  setDock(`${who} ${t('Tik waar jij gaat staan.','Touche où tu vas.')}`);
+  if(st.turn&&GL.on)sfx.kick();
+  const dir=carrier.gk?0:(c.isOpen?-5:5);if(dir)tween(carrier,{y:carrier.y+dir},total,'l');
+  if(GL.on){setTimeout(()=>{if(my!==token||!deciding)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+(c.ball[0]-a.x)*.05+Math.sin(i*2.3)*1.4,5,95),y:clamp(a.y+(c.ball[1]-a.y)*.05+Math.cos(i*1.7)*1.4,8,132)},total,'l')})},500)}
+  const t0=clock,answer=await new Promise(res=>{deciding={t0,total,res,c}});
+  deciding=null;if(my!==token)return null;
+  $('prompt').hidden=true;setBar(0);
+  return liveResolve(c,answer,clock-t0,total,carrier,st,my);
+}
+async function liveResolve(c,a,ms,total,carrier,st,my){
+  const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token,L=G.live,role=slotOf().role;
+  const snap=[...us,...them].map(q=>({a:q,x:q.x,y:q.y})),mine=j.spot?{x:j.spot.x,y:j.spot.y}:{x:me.x,y:me.y};
+  const good=j.res==='good',fast=ms<total*.5,bad=j.res==='wrong'||j.res==='late';
+  G.n++;if(isOpen)G.nOpen++;else G.nDicht++;G.lastFast=fast;
+  if(good){G.streak++;G.best=Math.max(G.best,G.streak);if(isOpen)G.open++;else G.dicht++;G.pts+=fast?3:2;if(fast&&tempo!=='slow')G.fast++}else{G.streak=0;if(j.res==='close')G.pts+=1}
+  G.log.push(good?'good':j.res==='close'?'close':'bad');
+  if(!good&&c.sit){seenSit.set(c.sit,-3);const idx=SITS.indexOf(c.sit);if(idx>=0){G.miss.push(idx);G.missDetail.push({id:idx,late:j.res==='late'})}}
+  if(a.kind!=='late'){G.rtSum+=ms;G.rtN++}
+  if(st.turn){L.turnN++;if(good)L.turnGood++}
+  if(G.i>=LIVE_N/2){L.half2n++;if(good)L.half2++}
+  $('streak').hidden=G.streak<2;$('streak').textContent=t(`Reeks ${G.streak}`,`Série ${G.streak}`);
+  if(good)liveToast((j.tip!==c.tip?p2(j.tip).split('!')[0]+'!':isOpen?rnd([t('Goed open!','Bien ouvert !'),t('Vrij!','Libre !'),t('Top plek!','Super place !')]):rnd([t('Goed dicht!','Bien fermé !'),t('Sterk!','Costaud !'),t('Muur!','Le mur !')]))+(st.turn?' '+t('Snel omgeschakeld!','Bien réagi !'):''),'good');
+  else if(j.res==='close')liveToast(t('Bijna goed!','Presque !'),'close');
+  else liveToast((j.res==='late'?t('Te laat! ','Trop tard ! '):'')+p2(j.tip),'bad');
+  if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},runDur(me,j.spot.x,j.spot.y,280,1100),'run');if(!alive())return null;view.marker=null}
+  teamShift(c,carrier);
+  if(bad)G.demos.push({c,j,title:j.res==='late'?t('Te laat!','Trop tard !'):(isOpen?t('Bal kwijt!','Ballon perdu !'):t('Tegengoal!','But encaissé !')),carrier,snap,mine});
+  const R=Math.random();
+  if(isOpen){
+    if(!bad){
+      const attack=good&&role!=='GK'&&me.y<74;
+      if(attack&&R<.5){
+        const scored=await sceneGoal(carrier,my);if(!alive())return null;
+        if(scored)L.myGoals++;if(st.counter)L.counterGoals++;
+        liveToast(scored?t(`Goal van ${setup.name}!`,`But de ${setup.name} !`):t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),'good');
+        await wait(350);return{poss:'dicht',target:[50,62],turn:false,counter:false};
+      }
+      await scenePass(me,my);if(!alive())return null;
+      if(Math.random()<(good?.45:.65)){
+        const pt=await sceneMateLoses(my);if(!alive()||!pt)return null;
+        liveToast(t('Je maat verliest de bal! Snel terug: DICHT!','Ton équipier perd le ballon ! Vite : FERMER !'),'warn');
+        return{poss:'dicht',target:[pt.x,pt.y],turn:true,counter:false};
+      }
+      return{poss:'open',target:[clamp(me.x,10,90),clamp(me.y-16,20,130)],turn:false,counter:st.counter};
+    }
+    await sceneLost(carrier,my);if(!alive())return null;
+    return{poss:'dicht',target:[ball.x,ball.y],turn:true,counter:false};
+  }
+  if(good){
+    await sceneWin(my);if(!alive())return null;
+    return{poss:'open',target:[me.x,me.y],turn:true,counter:true};
+  }
+  if(j.res==='close'){
+    await sceneKeeper(carrier,my);if(!alive())return null;
+    liveToast(t('De keeper redt! Nu OPEN.','Le gardien sauve ! Maintenant OUVRIR.'),'warn');
+    return{poss:'open',target:[50,128],turn:true,counter:false};
+  }
+  if(ball.y>84||R<.4){
+    await sceneAgainst(carrier,my);if(!alive())return null;
+    return{poss:'open',target:[50,76],turn:false,counter:false};
+  }
+  const pt=await sceneBeaten(carrier,my);if(!alive())return null;
+  liveToast(t('Ze komen dichterbij! Blijf DICHT.','Ils approchent ! Reste FERMÉ.'),'warn');
+  return{poss:'dicht',target:[pt.x,pt.y],turn:false,counter:false};
+}
+async function sceneMateLoses(my){
+  const mate=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0]||us[1];
+  const tx=clamp(mate.x,10,90),ty=clamp(mate.y-3,18,124);
+  runTo(mate,tx,ty,260,620);
+  await kick(tx,ty,clamp(dist(ball,{x:tx,y:ty})*6,360,800),1.2);if(my!==token)return null;
+  ball.owner=mate;setAct(mate,'trap',300);
+  const fx=clamp(tx+(50-tx)*.2,8,92),fy=clamp(ty-9,14,124);
+  let o=null,b=1e9;them.forEach(x=>{if(x.gk)return;const v=dist(x,{x:fx,y:fy});if(v<b){b=v;o=x}});
+  tween(o,{x:fx+1,y:fy-1.5},560,'run');
+  await tween(mate,{x:fx,y:fy+1.5},620,'run');if(my!==token)return null;
+  setAct(o,'tackle',420);turfBurst(fx,fy,8);ball.owner=o;sfx.bad();
+  await wait(380);
+  return{x:o.x,y:o.y};
+}
+async function sceneBeaten(carrier,my){
+  const tx=clamp(50+(carrier.x-50)*.7,8,92),ty=clamp(carrier.y+20,20,104);
+  await tween(carrier,{x:tx,y:ty},runDur(carrier,tx,ty,420,1000),'run');if(my!==token)return null;
+  sfx.bad();return{x:tx,y:ty};
+}
 async function resolveAction(c,a,ms,total,carrier,my){
   const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;
   const snap=[...us,...them].map(q=>({a:q,x:q.x,y:q.y})),mine=j.spot?{x:j.spot.x,y:j.spot.y}:{x:me.x,y:me.y};
   if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},runDur(me,j.spot.x,j.spot.y,300,1250),'run');if(!alive())return;view.marker=null}
-  us.forEach((m,i)=>{
-    if(m===carrier||m===me||m.gk||i===c.presser)return;
-    if(isOpen)runTo(m,clamp(50+(m.x-50)*1.18,5,95),clamp(m.y-5,10,128),600,1100);
-    else{const cx=50+(ball.x-50)*.3;runTo(m,cx+(m.x-cx)*.82,clamp(m.y+4,10,128),600,1100)}
-  });
+  teamShift(c,carrier);
   view.hull=true;view.hullColor=isOpen?'#ffc928':'#7fe7ea';
   const fast=ms<total*.5;let title,kind;G.lastFast=fast;
   if(j.res==='good'){G.streak++;G.best=Math.max(G.best,G.streak);if(fast&&tempo!=='slow')G.fast++}else G.streak=0;
@@ -2548,13 +2768,13 @@ function feedback(title,tip,kind,my){return new Promise(res=>{
   const sm=$('fbShow');sm.hidden=kind==='good'||!G.demo;sm.disabled=false;
 })}
 function finish(){
-  const r=G.pts/(ACTIONS*3),n=r>=.7?3:r>=.45?2:r>=.2?1:0,key=starKey(setup.fmt,G.lv);if(n>store.get(key,0))store.set(key,n);
+  const r=G.pts/(Math.max(1,G.n)*3),n=r>=.7?3:r>=.45?2:r>=.2?1:0,key=starKey(setup.fmt,G.lv);if(n>store.get(key,0))store.set(key,n);
   $('rTitle').textContent=G.us>G.them?t('Gewonnen!','Gagné !'):G.us===G.them?t('Gelijkspel!','Match nul !'):t('Verloren','Perdu');
   $('rScore').textContent=`${$('tHome').textContent} ${G.us} - ${G.them} ${t('GAST','ADV')}`;
   $('rStars').textContent=starText(n);$('rStars').setAttribute('aria-label',n+'/3');
-  const rep_=$('rReport');rep_.innerHTML=G.log.map(k=>`<i class="${k==='bad'?'':k}"></i>`).join('');rep_.setAttribute('aria-label',`${G.open+G.dicht}/${ACTIONS}`);
-  $('rOpen').textContent=`${G.open}/4`;$('rDicht').textContent=`${G.dicht}/4`;
-  $('rTip').textContent=G.open===4&&G.dicht===4?t(`Alles goed, ${setup.name}! Jij bent een baas op het veld.`,`Tout est bon, ${setup.name} ! Tu es un chef sur le terrain.`):G.open<G.dicht?t('Oefen OPEN: wij hebben de bal, maak het veld groot.','Entraîne-toi à OUVRIR : on a le ballon, rends le terrain grand.'):G.dicht<G.open?t('Oefen DICHT: zij hebben de bal, maak het veld klein.','Entraîne-toi à FERMER : ils ont le ballon, rends le terrain petit.'):t('Kijk altijd eerst: wie heeft de bal?','Regarde toujours d’abord : qui a le ballon ?');
+  const rep_=$('rReport');rep_.innerHTML=G.log.map(k=>`<i class="${k==='bad'?'':k}"></i>`).join('');rep_.setAttribute('aria-label',`${G.open+G.dicht}/${G.n}`);
+  $('rOpen').textContent=`${G.open}/${G.nOpen}`;$('rDicht').textContent=`${G.dicht}/${G.nDicht}`;
+  $('rTip').textContent=G.open+G.dicht===G.n?t(`Alles goed, ${setup.name}! Jij bent een baas op het veld.`,`Tout est bon, ${setup.name} ! Tu es un chef sur le terrain.`):G.open<G.dicht?t('Oefen OPEN: wij hebben de bal, maak het veld groot.','Entraîne-toi à OUVRIR : on a le ballon, rends le terrain grand.'):G.dicht<G.open?t('Oefen DICHT: zij hebben de bal, maak het veld klein.','Entraîne-toi à FERMER : ils ont le ballon, rends le terrain petit.'):t('Kijk altijd eerst: wie heeft de bal?','Regarde toujours d’abord : qui a le ballon ?');
   const news=recordMatch(n);
   if(GL.on){GL.hero=me||us[us.length-1];if(G.us>=G.them){setAct(GL.hero,'cheer',60000);GL.jump=G.us>G.them?.8:.3}else setAct(GL.hero,'despair',60000)}
   sfx.whistle();show('result');
@@ -2579,6 +2799,7 @@ function loadProgress(){
   /* Older saves: copy what was already measured into the statistics */
   if(!p.stats){p.stats=Object.assign(blankStats(),{since:null,matches:p.matches,good:p.good,open:p.open,dicht:p.dicht,total:p.total||0,rtSum:p.rtSum||0,rtN:p.rtN||0,posStats:p.posStats||{},history:p.history||[]})}
   /* Saves from before the question counter existed could report over 100% */
+  p.live=Object.assign(blankLive(),v&&v.live||{});
   const S=p.stats;
   /* Saves without modes: rebuild what the recent match list still knows */
   if(!S.modes){S.modes={};(S.history||[]).forEach(h=>{const k=`${h.fmt}|${h.lv}|${h.pos}`,m=S.modes[k]||(S.modes[k]=blankMode());addResult(m,h.us,h.them);m.open+=h.open;m.dicht+=h.dicht;m.good+=h.open+h.dicht;m.total+=ACTIONS})}
@@ -2603,18 +2824,29 @@ function recordMatch(starsWon){
   }
   if(G.lv===2&&G.us>G.them&&setup.fmt===8)p.m8l3++;
   if(G.lv===2&&G.us>G.them&&setup.fmt===11)p.m11l3++;
-  if(G.open===4)p.openP++;if(G.dicht===4)p.dichtP++;if(G.open===4&&G.dicht===4)p.perfect++;
-  const S=p.stats,statKey=setup.fmt+'-'+slot.id,ps=Object.assign({tot:0,good:0},S.posStats[statKey]);ps.tot+=ACTIONS;ps.good+=G.open+G.dicht;S.posStats[statKey]=ps;
-  S.matches++;S.good+=G.open+G.dicht;S.open+=G.open;S.dicht+=G.dicht;S.total+=ACTIONS;S.rtSum+=G.rtSum;S.rtN+=G.rtN;
+  if(G.nOpen&&G.open===G.nOpen)p.openP++;if(G.nDicht&&G.dicht===G.nDicht)p.dichtP++;if(G.open+G.dicht===G.n)p.perfect++;
+  const S=p.stats,statKey=setup.fmt+'-'+slot.id,ps=Object.assign({tot:0,good:0},S.posStats[statKey]);ps.tot+=G.n;ps.good+=G.open+G.dicht;S.posStats[statKey]=ps;
+  S.matches++;S.good+=G.open+G.dicht;S.open+=G.open;S.dicht+=G.dicht;S.total+=G.n;S.rtSum+=G.rtSum;S.rtN+=G.rtN;
   S.history.push({fmt:setup.fmt,pos:slot.id,lv:G.lv,us:G.us,them:G.them,open:G.open,dicht:G.dicht,day:todayKey()});if(S.history.length>80)S.history.shift();
   (G.miss||[]).forEach(id=>{S.miss[id]=(S.miss[id]||0)+1});
   const modeKey=`${setup.fmt}|${G.lv}|${slot.id}`,M=S.modes[modeKey]||(S.modes[modeKey]=blankMode());
-  addResult(M,G.us,G.them);M.good+=G.open+G.dicht;M.open+=G.open;M.dicht+=G.dicht;M.total+=ACTIONS;M.rtSum+=G.rtSum;M.rtN+=G.rtN;
+  addResult(M,G.us,G.them);M.good+=G.open+G.dicht;M.open+=G.open;M.dicht+=G.dicht;M.total+=G.n;M.rtSum+=G.rtSum;M.rtN+=G.rtN;
   (G.missDetail||[]).forEach(q=>{const e=M.miss[q.id]||(M.miss[q.id]={n:0,late:0});e.n++;if(q.late)e.late++});
   addUnique(p.days,todayKey());if(p.days.length>90)p.days.shift();p.bestDays=Math.max(p.bestDays,dayStreak(p));
   const moves=G.skillsDone||[];p.skillCount+=moves.length;G.newSkills=[];moves.forEach(id=>{if(!p.skills.includes(id)){p.skills.push(id);G.newSkills.push(id)}});
   addUnique(p.roles,slot.role);addUnique(p.positions,setup.fmt+'-'+slot.id);addUnique(p.formats,setup.fmt);
-  if(starsWon===3)addUnique(p.threeStars,G.lv);
+  if(starsWon===3&&G.lv<3)addUnique(p.threeStars,G.lv);
+  if(G.lv===3){
+    const L=p.live,X=G.live,win=G.us>G.them,diff=G.us-G.them;
+    L.m++;if(win)L.w++;L.goals+=G.us;L.myGoals+=X.myGoals;if(G.them===0)L.clean++;L.good+=G.open+G.dicht;L.turnGood+=X.turnGood;L.counterGoals+=X.counterGoals;
+    L.chain=Math.max(L.chain,G.best);if(X.myGoals>=3)L.hat++;if(win&&X.trailed)L.comeback++;if(diff>=3)L.big3++;if(diff>=5)L.big5++;
+    if(G.n&&G.open+G.dicht===G.n){L.perfect++;if(tempo!=='slow')L.perfectFast++}
+    if(tempo!=='slow'&&G.fast>=10)L.flash++;
+    if(X.half2n>=LIVE_N/2&&X.half2===X.half2n)L.half2++;
+    L.run=G.us>=G.them?L.run+1:0;L.runBest=Math.max(L.runBest,L.run);
+    if(win)addUnique(L.fmtWin,setup.fmt);
+    if(setup.fmt===5){addUnique(L.pos,slot.id);if(win)addUnique(L.posWin,slot.id);const q=Object.assign({m:0,w:0,good:0,clean:0,goals:0,wins:0},L.byPos[slot.id]);q.m++;if(win)q.w++;q.good+=G.open+G.dicht;if(G.them===0)q.clean++;q.goals+=X.myGoals;L.byPos[slot.id]=q}
+  }
   if(G.lv===2&&G.us>G.them){p.l3wins++;if(tempo!=='slow')p.l3match++}
   const newChallenges=[],newCups=[];
   ALL_CUPS.forEach(cup=>{
@@ -2623,13 +2855,14 @@ function recordMatch(starsWon){
   });
   if(CUPS.every(cup=>p.cups.includes(cup.id))&&!p.cups.includes(FINAL_CUP.id)){p.cups.push(FINAL_CUP.id);newCups.push(FINAL_CUP)}
   if(GOLD_IDS.every(id=>p.cups.includes(id))&&!p.cups.includes(LEGEND_CUP.id)){p.cups.push(LEGEND_CUP.id);newCups.push(LEGEND_CUP)}
+  if(LIVE_CUPS.every(c=>p.cups.includes(c.id))&&!p.cups.includes(LIVE_LEGEND.id)){p.cups.push(LIVE_LEGEND.id);newCups.push(LIVE_LEGEND)}
   store.set(progressKey(),p);
   return{challenges:newChallenges,cups:newCups};
 }
 function nextChallenge(p){
   let best=null,score=-9;
   const mine=setup.fmt===5&&setup.pos?'p-'+setup.pos+'-':'#';
-  ALL_CUPS.forEach(cup=>cup.ch.forEach(c=>{const v=c.cur(p);if(v>=c.goal)return;let r=v/c.goal;if(cup.hard)r-=.5;if(cup.id.startsWith(mine))r+=.35;if(r>score){score=r;best={c,v,cup}}}));
+  ALL_CUPS.forEach(cup=>cup.ch.forEach(c=>{const v=c.cur(p);if(v>=c.goal)return;let r=v/c.goal;if(cup.hard)r-=.5;if(cup.id.startsWith(mine))r+=.35;if(G&&G.lv===3&&cup.id.startsWith('lv-'))r+=.4;if(r>score){score=r;best={c,v,cup}}}));
   return best;
 }
 function renderNextGoal(el){
@@ -2729,7 +2962,7 @@ function renderStats(){
 }
 let cabReturn='setup',resetArmed=false;
 function renderCabinet(){
-  const p=loadProgress(),everything=[...ALL_CUPS,FINAL_CUP,LEGEND_CUP],won=everything.filter(c=>p.cups.includes(c.id)).length;
+  const p=loadProgress(),everything=[...ALL_CUPS,FINAL_CUP,LEGEND_CUP,LIVE_LEGEND],won=everything.filter(c=>p.cups.includes(c.id)).length;
   $('cabTitle').textContent=t(`Bekers van ${setup.name}`,`Trophées de ${setup.name}`);
   $('cabCount').textContent=`${won}/${everything.length} ${t('gewonnen','gagnés')}`;
   const box=$('shelf');box.innerHTML='';
@@ -2749,6 +2982,11 @@ function renderCabinet(){
     });
     box.appendChild(d);
   };
+  section(t('Live match','Match en direct'));
+  bigCup(LIVE_LEGEND,t(`Win alle ${LIVE_CUPS.length} Live bekers.`,`Gagne les ${LIVE_CUPS.length} trophées du Match en direct.`));
+  LIVE_CUPS.filter(c=>c.group!=='livepos').forEach(card);
+  section(t('Live match · per plek (5 tegen 5)','Match en direct · par poste (5 contre 5)'));
+  LIVE_CUPS.filter(c=>c.group==='livepos').sort((a,b)=>(b.id==='lv-p-'+setup.pos&&setup.fmt===5)-(a.id==='lv-p-'+setup.pos&&setup.fmt===5)).forEach(card);
   section(t('De grote bekers','Les grands trophées'));
   bigCup(LEGEND_CUP,t('Win de 5 gouden bekers van 5 tegen 5.','Gagne les 5 trophées d’or du 5 contre 5.'));
   bigCup(FINAL_CUP,t('Win de 6 eerste bekers.','Gagne les 6 premiers trophées.'));
