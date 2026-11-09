@@ -286,8 +286,9 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .skill-card{grid-template-columns:minmax(0,1fr)!important}.skill-card strong{font-size:23px!important}
 .banner.skill{top:17%;font-size:clamp(34px,10.5vw,64px);background:linear-gradient(100deg,#ffe067,#ff8a1f);color:#10131b;padding:3px 20px;box-shadow:0 8px 26px #ff8a1f88;animation:slam .35s cubic-bezier(.2,1.5,.4,1) both;max-width:none}
 #rSkills{background:#3d2a0ccc;border:1px solid var(--gold);border-radius:12px;padding:9px 12px;text-align:left;font-size:16px}#rSkills b{display:block;color:var(--gold);font-family:var(--display);font-weight:400;font-size:24px;text-transform:uppercase}
-#stats{display:flex;flex-direction:column;gap:10px;animation:rise .34s ease-out both}
-.gl3d #stats::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:#050b18eb}
+#stats,#coachEd{display:flex;flex-direction:column;gap:10px;animation:rise .34s ease-out both}
+#coachEd .shelf{-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:40px}
+.gl3d #stats::before,.gl3d #coachEd::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:#050b18eb}
 .stat-card{background:#0d1a33d9;border:1px solid #ffffff2b;border-radius:14px;padding:11px 13px;display:flex;flex-direction:column;gap:7px}
 .stat-card h3{margin:0;font-family:var(--display);font-weight:400;font-size:24px;text-transform:uppercase;color:var(--gold)}
 .stat-card p{margin:0;font-size:16px}
@@ -2665,14 +2666,16 @@ function renderCoachEditor(){
   const c2=card(CE.edit>=0?t(`Situatie ${CE.edit+1} aanpassen`,`Modifier la situation ${CE.edit+1}`):t('Nieuwe situatie','Nouvelle situation'));
   c2.appendChild(el('p','stat-note',t('Sleep de spelers en de bal. Blauw = wij, rood = zij, geel ★ = het kind. Het kind moet zijn plek kiezen.','Fais glisser les joueurs et le ballon. Bleu = nous, rouge = eux, jaune ★ = l’enfant. L’enfant devra trouver sa place.')));
   const seg=el('div','seg ce-seg');[['move',t('Verplaatsen','Déplacer')],['ok',t('Goede plekken','Bonnes places')]].forEach(([m,x])=>{const b=el('button',null,x);b.id='ceMode-'+m;b.setAttribute('aria-pressed',CE.mode===m);b.onclick=()=>{CE.mode=m;seg.querySelectorAll('button').forEach(z=>z.setAttribute('aria-pressed',z===b));ceStatus()};seg.appendChild(b)});c2.appendChild(seg);
-  const cv=el('canvas','ce-canvas');cv.id='ceCanvas';c2.appendChild(cv);
-  const st=el('p','ce-status');st.setAttribute('role','status');c2.appendChild(st);
+  const st=el('p','ce-status');st.setAttribute('role','status');
+  const cv=el('canvas','ce-canvas');cv.id='ceCanvas';
   const ta=el('textarea','ce-in');ta.id='ceTip';ta.rows=2;ta.maxLength=140;ta.placeholder=t('Uitleg voor het kind (kort), bv. Ga breed: daar ben je vrij.','Explication pour l’enfant (courte), ex. Écarte-toi : là tu es libre.');ta.value=CE.cur.m;ta.oninput=()=>{CE.cur.m=ta.value};c2.appendChild(ta);
+  const actions=el('div','ce-row');
   const valid=()=>{if(!CE.cur.k.length){ceStatus(t('Zet eerst minstens één goede plek.','Mets d’abord au moins une bonne place.'));return false}return true};
-  c2.appendChild(row(
+  actions.append(
     btn(t('Proberen','Essayer'),'',()=>{if(!valid())return;playCoach({t:CE.t||t('Test','Essai'),f:CE.f,p:CE.p,q:[ceClone(CE.cur)]},{editor:true})},'ceTry'),
     btn(CE.edit>=0?t('Bewaren','Enregistrer'):t('Toevoegen','Ajouter'),'primary',()=>{if(!valid())return;if(CE.edit<0&&CE.q.length>=COACH_MAX){ceStatus(t(`Maximum ${COACH_MAX} situaties.`,`${COACH_MAX} situations au maximum.`));return}const q=ceClone(CE.cur);if(CE.edit>=0)CE.q[CE.edit]=q;else CE.q.push(q);CE.edit=-1;CE.cur.k=[];CE.cur.m='';ceSave();renderCoachEditor()},'ceAdd'),
-    btn(t('Nieuw','Nouveau'),'',()=>{CE.edit=-1;CE.cur=ceDefault(CE.f,CE.p);renderCoachEditor()},'ceNew')));
+    btn(t('Nieuw','Nouveau'),'',()=>{CE.edit=-1;CE.cur=ceDefault(CE.f,CE.p);renderCoachEditor()},'ceNew'));
+  c2.insertBefore(actions,ta);c2.insertBefore(st,ta);c2.insertBefore(cv,ta);
   /* 3. Situations in the series */
   const c3=card(`${t('Situaties','Situations')} (${CE.q.length}/${COACH_MAX})`);
   if(!CE.q.length)c3.appendChild(el('p','stat-note',t('Nog niets. Maak een situatie en tik op Toevoegen.','Rien pour l’instant. Crée une situation et touche Ajouter.')));
@@ -2699,7 +2702,7 @@ function renderCoachEditor(){
     cs.forEach(x=>{const it=el('div','ce-item');it.appendChild(el('span',null,`${x.t||'Coach'} · ${p2(FORMATS[x.f].name)} · ${x.q.length}`));it.appendChild(btn(t('Spelen','Jouer'),'',()=>playCoach(x,{editor:true})));it.appendChild(btn('✕','danger',()=>{store.set('fts-coach-series',coachSeries().filter(s=>s.id!==x.id));renderList()}));lb.appendChild(it)})};
   renderList();
   /* Canvas size */
-  const w=Math.min(330,c2.clientWidth-26||300);CE.u=w/100;CE.dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=Math.max(170,Math.min(330,(c2.clientWidth||326)-26,(window.innerHeight||700)*.5/1.4));CE.u=w/100;CE.dpr=Math.min(2,window.devicePixelRatio||1);
   cv.style.width=w+'px';cv.style.height=w*1.4+'px';cv.width=Math.round(w*CE.dpr);cv.height=Math.round(w*1.4*CE.dpr);
   CE.cv=cv;CE.st=st;ceFixHolder();ceBindCanvas(cv);ceDraw();ceStatus();
 }
