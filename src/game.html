@@ -358,6 +358,7 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .look-row button[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
 .pwa-note{display:flex;gap:8px;align-items:flex-start;background:#0a1529ee;border:1px solid #ffffff44;border-radius:12px;padding:9px 10px;font-size:14px;margin-bottom:8px}
 .pwa-note button{min-width:36px;min-height:36px;border-radius:9px;background:#ffffff1f;color:var(--chalk);font-weight:800}
+#cv{touch-action:none}
 </style>
 
 <canvas id="gl" aria-hidden="true"></canvas>
@@ -1001,11 +1002,11 @@ const LEVELS=[
  {n:['Open of dicht?','Ouvrir ou fermer ?'],s:['Kijk wie de bal heeft en kies','Regarde qui a le ballon et choisis'],time:[3,2.2]},
  {n:['Kies je plek','Choisis ta place'],s:['Tik op de beste ring','Touche le meilleur cercle'],time:[4,3]},
  {n:['Echte match','Vrai match'],s:['Tik zelf waar je gaat staan','Touche toi-même où te placer'],time:[4,2.8]},
- {n:['Live match','Match en direct'],s:['Een hele match: de bal wisselt, jij blijft beslissen','Un match entier : le ballon change de camp, tu enchaînes'],time:[4.2,2.6],live:true},
+ {n:['Live match','Match en direct'],s:['De match stopt nooit: loop waar je wilt','Le match ne s’arrête jamais : cours où tu veux'],time:[4.2,2.6],live:true},
  {n:['Thema','Thème'],s:['Eén idee oefenen','Travailler une idée'],time:[4.6,3.4],hidden:true,theme:true},
  {n:['Coach','Coach'],s:['Situaties van je coach','Situations de ton coach'],time:[4.8,3.6],hidden:true,coach:true}
 ];
-const LIVE_N=20,THEME_N=6,COACH_MAX=10;
+const LIVE_N=30,THEME_N=6,COACH_MAX=10;
 const THEMES=[
  {k:'weak',n:['Mijn zwakke punten','Mes points faibles'],s:['De situaties waar je het vaakst mis was','Les situations où tu te trompes le plus']},
  {k:'press2',n:['Samen druk zetten','Pressing à deux'],s:['Eén zet druk, de ander helpt','Un presse, l’autre aide']},
@@ -2804,7 +2805,7 @@ function teamShift(c,carrier){
 }
 /* ========== Live match: one long match, the ball keeps changing teams ========== */
 let toastTimer=0;
-function liveToast(txt,kind){const el=$('liveToast');el.textContent=txt;el.className='live-toast '+kind;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},kind==='bad'?2300:1500)}
+function liveToast(txt,kind){const el=$('liveToast');el.textContent=txt;el.className='live-toast '+kind;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},kind==='bad'?2000:1100)}
 const liveMinute=k=>{const h=LIVE_N/2,step=25/h;return k<h?Math.round(1+k*step):Math.round(26+(k-h)*step)};
 function pickLive(slot,s,target){
   const pool=SITS.filter(x=>x.role===slot.role&&x.s===s&&(!x.only5||setup.fmt===5));
@@ -2813,23 +2814,28 @@ function pickLive(slot,s,target){
   pool.forEach(sit=>flips.forEach(fl=>{const bx=fl?100-sit.ball[0]:sit.ball[0],sc=Math.hypot(bx-target[0],(sit.ball[1]-target[1])*.8)+Math.random()*10+(G.used.get(sit)||0)*34;if(sc<bs){bs=sc;best={sit,flip:fl}}}));
   G.used.set(best.sit,(G.used.get(best.sit)||0)+1);return best;
 }
+/* ========== Live match: the ball never stops ==========
+   The choice opens while the ball is still moving. The child runs wherever he touches,
+   may change his mind, and the game reads his place a moment after his last touch. */
+const FLOW_SETTLE=650;
+function kickoffReset(){ball.owner=null;ball.from=ball.to=null;ball.z=0;ball.fall=0;ball.x=50;ball.y=70}
 async function runLive(my){
   const slot=slotOf(),half=LIVE_N/2;
   Object.assign(G,{n:0,nOpen:0,nDicht:0,used:new Map(),demos:[],live:{turnGood:0,turnN:0,counterGoals:0,myGoals:0,trailed:false,half2:0,half2n:0}});
   const firstBall=Math.random()<.5?'open':'dicht';
   let st={poss:firstBall,target:firstBall==='open'?[50,76]:[50,62],turn:false,counter:false};
+  kickoffReset();
+  const ik='fts-liveintro-'+setup.name.toLowerCase();
+  if(!store.get(ik,false)){store.set(ik,true);banner(t('Tik op het veld om te lopen. De match stopt nooit!','Touche le terrain pour courir. Le match ne s’arrête jamais !'));await wait(2200);if(my!==token)return;hideBanner()}
   for(let k=0;k<LIVE_N;k++){
     if(k===half){
-      /* Half time: a short break, then the other team kicks off */
-      $('liveToast').hidden=true;setDock('');sfx.whistle();banner(t('Rust','Mi-temps'),true);
-      us.forEach(a=>{if(!a.gk)runTo(a,a.x,clamp(a.y+6,10,128),700,1200)});
-      await wait(1700);if(my!==token)return;hideBanner();
-      const p2nd=firstBall==='open'?'dicht':'open';st={poss:p2nd,target:p2nd==='open'?[50,76]:[50,62],turn:false,counter:false};
-      sfx.whistle();
+      $('liveToast').hidden=true;setDock('');setBar(0);sfx.whistle();banner(t('Rust','Mi-temps'),true);
+      await wait(1100);if(my!==token)return;hideBanner();kickoffReset();
+      const p2nd=firstBall==='open'?'dicht':'open';st={poss:p2nd,target:p2nd==='open'?[50,76]:[50,62],turn:false,counter:false};sfx.whistle();
     }
     G.i=k;$('chip').textContent=`${liveMinute(k)}' · ${setup.name} · ${roleName(slot)}`;
     const pick=pickLive(slot,st.poss,st.target);
-    st=await liveDecision(pick,st,my);if(my!==token||!st)return;
+    st=await flowPhase(pick,st,my);if(my!==token||!st)return;
     if(G.them>G.us)G.live.trailed=true;
   }
   $('liveToast').hidden=true;setDock('');sfx.whistle();banner(t('Einde!','Fin du match !'),true);roar(1.2,.08);
@@ -2839,36 +2845,54 @@ async function runLive(my){
   for(const d of review){view={};ball.fall=0;banner(t('Even terugkijken','On revoit l’action'));await wait(900);if(my!==token)return;hideBanner();await coachSession(d,my);if(my!==token)return}
   view={};finish();
 }
-async function liveDecision(pick,st,my){
-  const slot=slotOf(),k=G.i;
-  view={};hideBanner();ball.fall=0;ball.from=ball.to=null;ball.z=0;
-  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(k/(LIVE_N-1)))*(tempo==='slow'?1.7:1)*(G.pace||1)*1000;
-  setBar(1);
+async function flowPhase(pick,st,my){
+  const slot=slotOf(),k=G.i,lvl=LEVELS[G.lv];
+  view.marker=null;hideBanner();ball.fall=0;
+  const total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(k/(LIVE_N-1)))*(tempo==='slow'?1.7:1)*(G.pace||1)*1000;
   const c=compose(pick.sit,slot,pick.flip);c.sit=pick.sit;
-  c.pos.us.forEach((o,i)=>{runTo(us[i],o.x,o.y)});
-  c.pos.them.forEach((o,i)=>{runTo(them[i],o.x,o.y)});
-  const carrier=c.isOpen?us[c.carrier]:them[c.carrier];
-  const cp=c.pos[c.isOpen?'us':'them'][c.carrier];
-  /* Keep the ball with the team that has it: a pass on the grass to the new carrier */
-  const prev=ball.owner;ball.owner=null;
-  runTo(carrier,cp.x,cp.y,360,820);
-  const far=Math.hypot(ball.x-c.ball[0],ball.y-c.ball[1]);
-  if(prev&&GL.on&&prev!==carrier){prev.faceT=Math.atan2(c.ball[0]-prev.x,c.ball[1]-prev.y);setAct(prev,'kick',380)}
-  ball.from={x:ball.x,y:ball.y};ball.to={x:c.ball[0],y:c.ball[1]};ball.h=Math.min(2.4,far*.04);
-  await tween(ball,{x:c.ball[0],y:c.ball[1]},clamp(far*14,420,900),'out');ball.from=ball.to=null;ball.z=0;if(my!==token)return null;
-  ball.owner=carrier;possShown=null;
+  /* Everyone except the child flows into the new shape at running speed */
+  c.pos.us.forEach((o,i)=>{if(us[i]!==me)runTo(us[i],o.x,o.y,380,1500)});
+  c.pos.them.forEach((o,i)=>runTo(them[i],o.x,o.y,380,1500));
+  const carrier=c.isOpen?us[c.carrier]:them[c.carrier],cp=c.pos[c.isOpen?'us':'them'][c.carrier];
+  view.hint=null;
+  if((G.badRun||0)>=2){const r=FORMATS[setup.fmt].radius[0];view.hint={x:clamp(c.ideal.x+(Math.random()-.5)*r*.9,6,94),y:clamp(c.ideal.y+(Math.random()-.5)*r*.9,8,134),r:r*1.7}}
   const who=c.isOpen?t('WIJ hebben de bal!','ON a le ballon !'):t('ZIJ hebben de bal!','ILS ont le ballon !');
-  setDock(`${who} ${t('Tik waar jij gaat staan.','Touche où tu vas.')}`);
-  if(st.turn&&GL.on)sfx.kick();
-  const dir=carrier.gk?0:(c.isOpen?-5:5);if(dir)tween(carrier,{y:carrier.y+dir},total,'l');
-  if(GL.on){setTimeout(()=>{if(my!==token||!deciding)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+(c.ball[0]-a.x)*.05+Math.sin(i*2.3)*1.4,5,95),y:clamp(a.y+(c.ball[1]-a.y)*.05+Math.cos(i*1.7)*1.4,8,132)},total,'l')})},500)}
-  view.hint=null;if(G.lv>=2&&(G.badRun||0)>=2){const r=FORMATS[setup.fmt].radius[0];view.hint={x:clamp(c.ideal.x+(Math.random()-.5)*r*.9,6,94),y:clamp(c.ideal.y+(Math.random()-.5)*r*.9,8,134),r:r*1.7};setDock(`${c.isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.')} ${t('Tip: kijk in de gele zone!','Astuce : regarde dans la zone jaune !')}`)}
-  const t0=clock,answer=await new Promise(res=>{deciding={t0,total,res,c}});
-  deciding=null;if(my!==token)return null;
+  setDock(`${who} ${view.hint?t('Kijk in de gele zone!','Regarde la zone jaune !'):c.isOpen?t('Loop vrij!','Démarque-toi !'):t('Sluit af!','Ferme !')}`);
+  setBar(1);possShown=null;
+  /* The choice is open from now on, even while the pass is travelling */
+  let first=null,last=null,done=false,finish;const t0=clock,ans=new Promise(r=>{finish=r});
+  deciding={t0,total,c,flow:true,res:a=>{
+    if(done)return;
+    if(a.kind!=='tap'){done=true;finish();return}
+    a.at=clock;if(!first)first=a;last=a;view.marker={x:a.x,y:a.y};
+    tween(me,{x:a.x,y:a.y},runDur(me,a.x,a.y,200,1100),'run');
+    deciding.earlyAt=clock+FLOW_SETTLE;
+  }};
+  /* The ball goes to the new carrier: a pass between team-mates, or it rolls after a restart */
+  const passP=(async()=>{
+    const prev=ball.owner;
+    if(prev===carrier){runTo(carrier,cp.x,cp.y,300,900)}
+    else{
+      runTo(carrier,cp.x,cp.y,260,800);
+      const far=Math.hypot(ball.x-cp.x,ball.y-cp.y);
+      if(prev&&prev.team===carrier.team)await kick(cp.x,cp.y,clamp(far*7,300,850),Math.min(2.2,far*.035));
+      else{ball.owner=null;ball.from={x:ball.x,y:ball.y};ball.to={x:cp.x,y:cp.y};ball.h=Math.min(2,far*.03);await tween(ball,{x:cp.x,y:cp.y},clamp(far*10,260,800),'out');ball.from=ball.to=null;ball.z=0}
+      if(my!==token)return;ball.owner=carrier;
+    }
+    /* The carrier keeps moving with the ball while the child decides */
+    const dir=carrier.gk?0:(c.isOpen?-4:4),left=total-(clock-t0);
+    if(dir&&!done&&left>250)tween(carrier,{x:carrier.x,y:clamp(carrier.y+dir,8,132)},left,'l');
+  })();
+  if(GL.on)setTimeout(()=>{if(my!==token||done)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+(ball.x-a.x)*.06+Math.sin(i*2.3)*1.6,5,95),y:clamp(a.y+(ball.y-a.y)*.06+Math.cos(i*1.7)*1.6,8,132)},Math.max(300,total-(clock-t0)),'l')})},700);
+  await ans;deciding=null;if(my!==token)return null;
   $('prompt').hidden=true;setBar(0);
-  return liveResolve(c,answer,clock-t0,total,carrier,st,my);
+  await passP;if(my!==token)return null;
+  let a=last;const ms=first?first.at-t0:total;
+  /* No touch: if he was already standing well, that counts as a good read */
+  if(!a){const here={kind:'tap',x:me.x,y:me.y};a=judge(c,here).res==='good'?here:{kind:'late'}}
+  return flowResolve(c,a,ms,total,carrier,st,my);
 }
-async function liveResolve(c,a,ms,total,carrier,st,my){
+async function flowResolve(c,a,ms,total,carrier,st,my){
   const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token,L=G.live,role=slotOf().role;paceAfter(j.res,ms<total*.5);
   const snap=[...us,...them].map(q=>({a:q,x:q.x,y:q.y})),mine=j.spot?{x:j.spot.x,y:j.spot.y}:{x:me.x,y:me.y};
   const good=j.res==='good',fast=ms<total*.5,bad=j.res==='wrong'||j.res==='late';
@@ -2883,47 +2907,80 @@ async function liveResolve(c,a,ms,total,carrier,st,my){
   if(good)liveToast((j.tip!==c.tip?p2(j.tip).split('!')[0]+'!':isOpen?rnd([t('Goed open!','Bien ouvert !'),t('Vrij!','Libre !'),t('Top plek!','Super place !')]):rnd([t('Goed dicht!','Bien fermé !'),t('Sterk!','Costaud !'),t('Muur!','Le mur !')]))+(st.turn?' '+t('Snel omgeschakeld!','Bien réagi !'):''),'good');
   else if(j.res==='close')liveToast(t('Bijna goed!','Presque !'),'close');
   else liveToast((j.res==='late'?t('Te laat! ','Trop tard ! '):'')+p2(j.tip),'bad');
-  if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},runDur(me,j.spot.x,j.spot.y,280,1100),'run');if(!alive())return null;view.marker=null}
+  view.marker=null;
   teamShift(c,carrier);
   if(bad)G.demos.push({c,j,title:j.res==='late'?t('Te laat!','Trop tard !'):(isOpen?t('Bal kwijt!','Ballon perdu !'):t('Tegengoal!','But encaissé !')),carrier,snap,mine});
   const R=Math.random();
   if(isOpen){
     if(!bad){
       /* Good play from the back leads to goals too: the striker finishes your pass */
-      const attack=good&&R<(role==='GK'?.22:me.y<74?.5:.34);
-      if(attack){
-        const scored=await sceneGoal(carrier,my);if(!alive())return null;
+      if(good&&R<(role==='GK'?.22:me.y<74?.5:.34)){
+        const scored=await flowShot(my);if(!alive()||scored===null)return null;
         if(scored)L.myGoals++;if(st.counter)L.counterGoals++;
         liveToast(scored?t(`Goal van ${setup.name}!`,`But de ${setup.name} !`):t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),'good');
-        await wait(350);return{poss:'dicht',target:[50,62],turn:false,counter:false};
+        return{poss:'dicht',target:[50,62],turn:false,counter:false};
       }
-      await scenePass(me,my);if(!alive())return null;
-      if(Math.random()<(good?.45:.65)){
-        const pt=await sceneMateLoses(my);if(!alive()||!pt)return null;
-        liveToast(t('Je maat verliest de bal! Snel terug: DICHT!','Ton équipier perd le ballon ! Vite : FERMER !'),'warn');
+      await flowPassTo(me,my);if(!alive())return null;
+      if(Math.random()<(good?.4:.6)){
+        const pt=await flowMateLoses(my);if(!alive()||!pt)return null;
+        liveToast(t('Bal kwijt! Snel DICHT!','Ballon perdu ! Vite, FERME !'),'warn');
         return{poss:'dicht',target:[pt.x,pt.y],turn:true,counter:false};
       }
       return{poss:'open',target:[clamp(me.x,10,90),clamp(me.y-16,20,130)],turn:false,counter:st.counter};
     }
-    await sceneLost(carrier,my);if(!alive())return null;
-    return{poss:'dicht',target:[ball.x,ball.y],turn:true,counter:false};
+    const pt=await flowIntercept(carrier,my);if(!alive()||!pt)return null;
+    return{poss:'dicht',target:[pt.x,pt.y],turn:true,counter:false};
   }
-  if(good){
-    await sceneWin(my);if(!alive())return null;
-    return{poss:'open',target:[me.x,me.y],turn:true,counter:true};
-  }
-  if(j.res==='close'){
-    await sceneKeeper(carrier,my);if(!alive())return null;
-    liveToast(t('De keeper redt! Nu OPEN.','Le gardien sauve ! Maintenant OUVRIR.'),'warn');
-    return{poss:'open',target:[50,128],turn:true,counter:false};
-  }
-  if(ball.y>84||R<.4){
-    await sceneAgainst(carrier,my);if(!alive())return null;
-    return{poss:'open',target:[50,76],turn:false,counter:false};
-  }
-  const pt=await sceneBeaten(carrier,my);if(!alive())return null;
-  liveToast(t('Ze komen dichterbij! Blijf DICHT.','Ils approchent ! Reste FERMÉ.'),'warn');
-  return{poss:'dicht',target:[pt.x,pt.y],turn:false,counter:false};
+  if(good){await flowWin(my);if(!alive())return null;return{poss:'open',target:[me.x,me.y],turn:true,counter:true}}
+  if(j.res==='close'){await flowSave(my);if(!alive())return null;liveToast(t('Gered! Nu OPEN.','Sauvé ! Maintenant OUVRE.'),'warn');return{poss:'open',target:[ball.x,ball.y],turn:true,counter:false}}
+  if(ball.y>84||R<.4){await flowConceded(carrier,my);if(!alive())return null;return{poss:'open',target:[50,76],turn:false,counter:false}}
+  const tx=clamp(50+(carrier.x-50)*.7,8,92),ty=clamp(carrier.y+18,20,104);
+  await tween(carrier,{x:tx,y:ty},runDur(carrier,tx,ty,300,700),'run');if(!alive())return null;
+  return{poss:'dicht',target:[tx,ty],turn:false,counter:false};
+}
+/* Short, flowing actions: no waiting between them */
+async function flowPassTo(target,my){const far=dist(ball,target);await kick(target.x,target.y,clamp(far*6.5,260,700),Math.min(1.6,far*.03));if(my!==token)return;ball.owner=target;setAct(target,'trap',240)}
+async function flowShot(my){
+  await flowPassTo(me,my);if(my!==token)return null;
+  let shooter=me,scored=true;
+  if(me.y>64){scored=false;shooter=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0]||me;const tx=clamp(shooter.x,28,72),ty=30;runTo(shooter,tx,ty,300,700);await kick(tx,ty,clamp(dist(ball,{x:tx,y:ty})*6,380,750),2.6);if(my!==token)return null;ball.owner=shooter}
+  else{const tx=clamp(me.x+(50-me.x)*.5,12,88),ty=Math.max(22,Math.min(me.y-8,34));await tween(me,{x:tx,y:ty},runDur(me,tx,ty,240,650),'run');if(my!==token)return null}
+  const F=FORMATS[setup.fmt],sx=F.line[0]+3+Math.random()*(F.line[1]-F.line[0]-6),gd=sx>50?-1:1;
+  tween(gkThem,{x:50+gd*9},360,'out');setAct(gkThem,'dive',1200,{dir:-gd});
+  await kick(sx,3,320,3.5,{power:true});if(my!==token)return null;
+  ball.fall=1;G.us++;updateScore();sfx.goal();celebrate();
+  if(GL.on){setAct(shooter,'cheer',900);us.forEach(x=>{if(x!==shooter&&!x.gk)setAct(x,'cheer',800)});them.forEach(x=>{if(!x.gk)setAct(x,'despair',800)})}else hopTeam();
+  banner(t('GOAL!','BUT !'),true);await wait(900);if(my!==token)return null;hideBanner();kickoffReset();
+  return scored;
+}
+async function flowMateLoses(my){
+  const mate=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0]||us[1];
+  const tx=clamp(mate.x,10,90),ty=clamp(mate.y-3,18,124);runTo(mate,tx,ty,220,520);
+  await kick(tx,ty,clamp(dist(ball,{x:tx,y:ty})*6,300,700),1.2);if(my!==token)return null;
+  ball.owner=mate;
+  const fx=clamp(tx+(50-tx)*.2,8,92),fy=clamp(ty-7,14,124);let o=null,b=1e9;them.forEach(x=>{if(x.gk)return;const v=dist(x,{x:fx,y:fy});if(v<b){b=v;o=x}});
+  tween(o,{x:fx+1,y:fy-1.5},420,'run');await tween(mate,{x:fx,y:fy+1.5},440,'run');if(my!==token)return null;
+  setAct(o,'tackle',380);turfBurst(fx,fy,8);ball.owner=o;sfx.bad();return{x:o.x,y:o.y};
+}
+async function flowIntercept(carrier,my){
+  /* The pass to you is cut: an opponent steps into the line */
+  const ax=carrier.x,ay=carrier.y,bx=me.x,by=me.y,L2=(bx-ax)**2+(by-ay)**2||1;
+  let o=null,best=1e9,pt={x:(ax+bx)/2,y:(ay+by)/2};
+  them.forEach(x=>{if(x.gk)return;const u=clamp(((x.x-ax)*(bx-ax)+(x.y-ay)*(by-ay))/L2,.3,.9),px=ax+(bx-ax)*u,py=ay+(by-ay)*u,v=Math.hypot(x.x-px,x.y-py);if(v<best){best=v;o=x;pt={x:px,y:py}}});
+  if(!o)o=them[1];tween(o,{x:pt.x,y:pt.y},380,'run');setAct(o,'tackle',380);
+  await kick(pt.x,pt.y,clamp(dist(ball,pt)*6,280,620),1);if(my!==token)return null;
+  ball.owner=o;sfx.bad();turfBurst(pt.x,pt.y,7);return{x:pt.x,y:pt.y};
+}
+async function flowWin(my){setAct(me,'tackle',360);await kick(me.x,me.y,clamp(dist(ball,me)*6,260,620),.5);if(my!==token)return;ball.owner=me;setAct(me,'trap',260);turfBurst(me.x,me.y,7);sfx.good()}
+async function flowSave(my){const k=ball.y>88?gkUs:us.filter(a=>a!==me&&!a.gk).sort((a,b)=>dist(a,ball)-dist(b,ball))[0]||gkUs;await kick(k.x,k.y,clamp(dist(ball,k)*6,280,700),1.4);if(my!==token)return;ball.owner=k;setAct(k,'trap',260)}
+async function flowConceded(carrier,my){
+  const tx=50+(carrier.x-50)*.55,ty=Math.max(carrier.y,108);
+  await tween(carrier,{x:tx,y:ty},runDur(carrier,tx,ty,260,700),'run');if(my!==token)return;
+  tween(gkUs,{x:40},340,'out');setAct(gkUs,'dive',1100,{dir:1});
+  await kick(FORMATS[setup.fmt].line[1]-3,137.5,320,2.5,{power:true});if(my!==token)return;
+  ball.fall=1;G.them++;updateScore();sfx.bad();shake=reduced?0:4;
+  if(GL.on){GL.netHitNear=clock+500;us.forEach(a=>{if(!a.gk)setAct(a,'despair',800)});them.forEach(a=>{if(!a.gk)setAct(a,'cheer',800)})}
+  await wait(700);if(my!==token)return;kickoffReset();
 }
 async function sceneMateLoses(my){
   const mate=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0]||us[1];
@@ -3409,6 +3466,13 @@ cv.addEventListener('pointerdown',e=>{
   if(G.lv===1){let best=null,bd=20;view.rings.forEach(o=>{const v=Math.hypot(o.x-q.x,o.y-q.y);if(v<bd){bd=v;best=o}});if(best)deciding.res({kind:'ring',ring:best})}
   else deciding.res({kind:'tap',x:clamp(q.x,5,95),y:clamp(q.y,6,136)});
 });
+/* In the live match the finger can also steer: slide it and the player follows */
+cv.addEventListener('pointermove',e=>{
+  if(!deciding||!deciding.flow||!(e.buttons&1))return;
+  const r=cv.getBoundingClientRect(),q=unproj(e.clientX-r.left,e.clientY-r.top),m=view.marker;
+  if(m&&Math.hypot(m.x-q.x,m.y-q.y)<4)return;
+  deciding.res({kind:'tap',x:clamp(q.x,5,95),y:clamp(q.y,6,136)});
+});
 $('btnOpen').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'open'})};
 $('btnDicht').onclick=()=>{if(deciding)deciding.res({kind:'btn',v:'dicht'})};
 $('fbGo').onclick=()=>{if(advance)advance()};
@@ -3469,6 +3533,7 @@ function frame(rawTs){
   lastRaw=rawTs;const ts=rawTs-timeShift;
   clock=ts;stepTweens();stepScripts();
   if(deciding){const left=1-(clock-deciding.t0)/deciding.total;setBar(left);if(left<.3&&!deciding.warned){deciding.warned=true;tone(880,.08,'square',.05);tone(880,.08,'square',.05,.28)}if(left<=0)deciding.res({kind:'late'})}
+  if(deciding&&deciding.earlyAt&&clock>=deciding.earlyAt)deciding.res({kind:'settle'});
   if(GL.on&&us.length)GL_render(ts);
   if(!$('play').hidden&&cv.width>10&&us.length)draw();
   requestAnimationFrame(frame);
