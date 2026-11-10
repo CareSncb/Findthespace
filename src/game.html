@@ -2893,8 +2893,8 @@ async function flowPhase(pick,st,my){
   $('prompt').hidden=true;setBar(0);
   await passP;if(my!==token)return null;
   let a=last;const ms=first?first.at-t0:total;
-  /* No touch: if he was already standing well, that counts as a good read */
-  if(!a){const here={kind:'tap',x:me.x,y:me.y};a=judge(c,here).res==='good'?here:{kind:'late'}}
+  /* No touch: only standing really well counts as a good read, so waiting is not a way to win */
+  if(!a){const here={kind:'tap',x:me.x,y:me.y},jj=judge(c,here),near=jj.best?Math.hypot(jj.best.x-me.x,jj.best.y-me.y):99;a=jj.res==='good'&&near<=FORMATS[setup.fmt].radius[0]*.55?here:{kind:'late'}}
   return flowResolve(c,a,ms,total,carrier,st,my);
 }
 async function flowResolve(c,a,ms,total,carrier,st,my){
