@@ -360,6 +360,8 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .ce-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;border-top:1px solid #ffffff1f;padding-top:6px;font-size:15px}
 .ce-item .ce-btn{flex:none;min-height:40px;font-size:14px}
 .ce-share{display:flex;flex-direction:column;gap:7px}
+.lv-tabs{display:flex;width:100%;margin:2px 0 4px}.lv-tabs button{flex:1;min-height:46px;font-size:17px}
+.rating{font-family:var(--display);font-size:26px;color:var(--gold);text-align:center;margin:0}
 body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,env(safe-area-inset-bottom,0px));-webkit-text-size-adjust:100%}
 </style>
 </head>
@@ -481,6 +483,7 @@ body{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,
   <h2 id="rTitle"></h2>
   <div class="final" id="rScore"></div>
   <div id="rStars" role="img"></div>
+  <p class="rating" id="rRating" hidden></p>
   <div class="report" id="rReport" role="img"></div>
   <div class="tally">
     <div class="o"><b id="rOpen"></b><span data-fr="fois bien ouvert">keer goed open</span></div>
@@ -1044,7 +1047,9 @@ function startAmbience(){
   try{const n=a.sampleRate*4,b=a.createBuffer(2,n,a.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);let v=0;for(let i=0;i<n;i++){v=v*.97+(Math.random()*2-1)*.03;d[i]=v*5*(.75+.25*Math.sin(i/a.sampleRate*1.57*(ch+1)))}}
    const s=a.createBufferSource();s.buffer=b;s.loop=true;const f=a.createBiquadFilter();f.type='bandpass';f.frequency.value=520;f.Q.value=.45;const g=a.createGain();g.gain.value=.07;s.connect(f).connect(g).connect(a.destination);s.start();ambience={g}}catch(e){}
 }
-const sfx={whistle(){for(let i=0;i<3;i++)tone(2300,.09,'square',.035,i*.09)},good(){[523,659,784].forEach((f,i)=>tone(f,.18,'triangle',.14,i*.09))},goal(){[523,659,784,1047,1319].forEach((f,i)=>tone(f,.26,'triangle',.15,i*.09));roar(2.2,.22)},bad(){tone(240,.4,'sawtooth',.08,0,-110);roar(.7,.05)},kick(){tone(170,.09,'square',.09)}};
+/* A short buzz in the hand on phones that allow it */
+const buzz=p=>{try{if(soundOn&&navigator.vibrate)navigator.vibrate(p)}catch(e){}};
+const sfx={whistle(){for(let i=0;i<3;i++)tone(2300,.09,'square',.035,i*.09)},good(){buzz(18);[523,659,784].forEach((f,i)=>tone(f,.18,'triangle',.14,i*.09))},goal(){buzz([40,60,40,60,120]);[523,659,784,1047,1319].forEach((f,i)=>tone(f,.26,'triangle',.15,i*.09));roar(2.2,.22)},bad(){buzz([35,50,35]);tone(240,.4,'sawtooth',.08,0,-110);roar(.7,.05)},kick(){tone(170,.09,'square',.09)}};
 function speak(s){if(!soundOn)return;try{const y=window.speechSynthesis;y.cancel();const u=new SpeechSynthesisUtterance(s);u.lang=lang==='fr'?'fr-BE':'nl-BE';u.rate=.98;const v=y.getVoices().find(x=>(lang==='fr'?/^fr/i:/^nl/i).test(x.lang));if(v)u.voice=v;y.speak(u)}catch(e){}}
 function setSoundIcons(){[$('soundHome'),$('soundPlay')].forEach(b=>b.textContent=soundOn?'🔊':'🔇')}
 function toggleSound(){soundOn=!soundOn;store.set('veld-sound',soundOn);setSoundIcons();if(ambience)ambience.g.gain.value=soundOn?.07:0;if(soundOn&&!$('play').hidden)startAmbience();if(!soundOn){try{speechSynthesis.cancel()}catch(e){}}}
@@ -1490,12 +1495,22 @@ function buildGeo(){
     for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const zf=v.z/.04;
       v.x*=1-.28*Math.max(0,zf)*Math.max(0,zf);if(v.y<-.012)v.y=-.012+(v.y+.012)*.25;if(zf>.3)v.y-=.006*(zf-.3);p.setXYZ(i,v.x,v.y,v.z)}
     boot.computeVertexNormals()}
+  /* Hair follows the skull: high over the forehead, lower at the temples, down to the nape */
+  const hairLine=c=>Math.PI*(.5-.13*c+(c<0?.08*c*c:0));
+  function hairShape(){
+    const g=new T.SphereGeometry(.0925,48,28,0,Math.PI*2,0,Math.PI*.74),p=g.attributes.position,v=new T.Vector3();
+    for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const r=v.length()||1;let ph=Math.acos(clamp(v.y/r,-1,1));const th=Math.atan2(v.x,v.z),c=Math.cos(th),lim=hairLine(c)+.035*Math.sin(th*7)*Math.max(0,c);
+      const edge=ph>lim;if(edge)ph=lim;
+      /* Thicker on top and in front, tufts break the outline, the edge tucks into the head */
+      const top=Math.max(0,Math.cos(ph)),rr=.0925*(1+.045*top+.03*top*Math.max(0,c)+.012*Math.sin(th*11+ph*9)*(1-top*.6))-(edge?.004:0);
+      const sn=Math.sin(ph);v.set(Math.sin(th)*sn*rr*.955,Math.cos(ph)*rr,Math.cos(th)*sn*rr*(c<0?1.075:1.01));p.setXYZ(i,v.x,v.y,v.z)}
+    g.computeVertexNormals();return g}
   const sole=new T.CylinderGeometry(.031,.031,.009,24);sole.scale(.95,1,2.25);
   const thumb=new T.SphereGeometry(.011,10,8);thumb.scale(1,1.7,1);
   const hand=new T.SphereGeometry(.026,20,14);hand.scale(.72,1.32,1.02);hand.translate(0,-.01,.002);
   GL.geo={
    torso:sculpt(L([[.1,.49],[.1,.53],[.1,.58],[.1,.63],[.1,.66],[.1,.69],[.1,.715],[.1,.735],[.1,.75],[.1,.765],[.1,.778],[.1,.79],[.1,.8],[.1,.807],[0,.812]],48),
-     [[.49,.1],[.53,.097],[.58,.096],[.63,.104],[.66,.113],[.69,.121],[.715,.13],[.735,.137],[.75,.14],[.765,.136],[.778,.122],[.79,.1],[.8,.068],[.807,.042],[.812,0]],
+     [[.49,.1],[.53,.097],[.58,.096],[.63,.104],[.66,.113],[.69,.118],[.715,.124],[.735,.128],[.75,.129],[.765,.124],[.778,.11],[.79,.09],[.8,.064],[.807,.042],[.812,0]],
      [[.49,.066],[.53,.064],[.58,.064],[.63,.07],[.66,.077],[.69,.081],[.715,.079],[.735,.072],[.75,.064],[.765,.056],[.778,.05],[.79,.044],[.8,.036],[.807,.03],[.812,0]],
      [[.49,.07],[.53,.066],[.58,.062],[.63,.064],[.66,.068],[.69,.072],[.715,.074],[.735,.072],[.75,.066],[.765,.058],[.778,.05],[.79,.044],[.8,.036],[.807,.03],[.812,0]]),
    hips:new T.LatheGeometry([V(.097,.535),V(.104,.5),V(.108,.46),V(.1,.43)],32),
@@ -1511,19 +1526,19 @@ function buildGeo(){
      [[-.218,.022],[-.19,.024],[-.165,.027],[-.14,.03],[-.115,.032],[-.09,.034],[-.065,.035],[-.04,.035],[-.01,.034],[.01,.032],[.015,0]],
      [[-.218,.022],[-.19,.024],[-.165,.028],[-.14,.035],[-.115,.042],[-.09,.046],[-.065,.045],[-.04,.04],[-.01,.034],[.01,.031],[.015,0]]),
    armU:sculpt(L([[0,-.158],[.03,-.155],[.03,-.13],[.03,-.1],[.03,-.07],[.03,-.04],[.03,-.015],[.03,0],[0,.012]],24),
-     [[-.158,.023],[-.13,.026],[-.1,.029],[-.07,.031],[-.04,.033],[-.015,.034],[0,.032],[.012,0]],
-     [[-.158,.022],[-.13,.026],[-.1,.031],[-.07,.033],[-.04,.032],[-.015,.032],[0,.031],[.012,0]],
-     [[-.158,.022],[-.13,.025],[-.1,.028],[-.07,.031],[-.04,.033],[-.015,.034],[0,.032],[.012,0]]),
+     [[-.158,.024],[-.13,.027],[-.1,.031],[-.07,.033],[-.04,.033],[-.015,.03],[0,.026],[.012,0]],
+     [[-.158,.023],[-.13,.027],[-.1,.033],[-.07,.035],[-.04,.033],[-.015,.03],[0,.026],[.012,0]],
+     [[-.158,.023],[-.13,.026],[-.1,.03],[-.07,.033],[-.04,.033],[-.015,.03],[0,.026],[.012,0]]),
    armL:sculpt(L([[0,-.152],[.025,-.15],[.025,-.13],[.025,-.1],[.025,-.07],[.025,-.04],[.025,-.01],[0,.006]],24),
      [[-.152,.019],[-.13,.02],[-.1,.023],[-.07,.026],[-.04,.027],[-.01,.024],[.006,0]],
      [[-.152,.016],[-.13,.018],[-.1,.021],[-.07,.023],[-.04,.024],[-.01,.022],[.006,0]],
      [[-.152,.016],[-.13,.018],[-.1,.021],[-.07,.023],[-.04,.024],[-.01,.023],[.006,0]]),
-   sleeve:L([[.0385,-.086],[.039,-.06],[.039,-.02],[.037,0],[0,.006]],24),
-   joint:new T.SphereGeometry(.038,24,16),elbow:new T.SphereGeometry(.0215,16,12),knee:new T.SphereGeometry(.03,16,12),hand,
+   sleeve:L([[.0372,-.09],[.0375,-.06],[.0375,-.02],[.036,0],[0,.006]],24),
+   joint:new T.SphereGeometry(.0385,24,16),elbow:new T.SphereGeometry(.0215,16,12),knee:new T.SphereGeometry(.03,16,12),hand,
    head,neck:new T.CylinderGeometry(.029,.035,.064,24),ear:new T.SphereGeometry(.019,10,8),nose:new T.SphereGeometry(.013,10,8),
    eye:new T.SphereGeometry(.0125,12,10),pupil:new T.SphereGeometry(.0072,10,8),pupil2:new T.SphereGeometry(.0038,8,6),brow:new T.BoxGeometry(.026,.0045,.006),
-   hairCap:new T.SphereGeometry(.092,32,16,0,Math.PI*2,0,Math.PI*.56),curl:new T.IcosahedronGeometry(.036,1),
-   boot,sole,thumb,sockBand:new T.CylinderGeometry(.039,.037,.034,16),band:new T.CylinderGeometry(.04,.04,.03,12),collar:new T.TorusGeometry(.033,.007,8,20)
+   hairCap:hairShape(),curl:new T.IcosahedronGeometry(.0165,1),
+   boot,sole,thumb,cuff:new T.CylinderGeometry(.027,.03,.026,20),sockBand:new T.CylinderGeometry(.039,.037,.034,16),band:new T.CylinderGeometry(.04,.04,.03,12),collar:new T.TorusGeometry(.033,.007,8,20)
   };
 }
 /* A painted face for every skin tone: lips, eyelids, cheeks and soft shadows */
@@ -1629,15 +1644,22 @@ function animatePlayer(a,dt,ts,inMatch){
     /* Arms swing against the legs, elbows bend more as the pace rises */
     const amp=.35+.3*mid+.35*fast,v=(F-.25)*amp,armG=v>0?v*.95:v*1.6;
     const elbowG=-(.3+1.15*mid+.3*fast)-.25*Math.max(0,-v);
-    const armIdle=a.gk?-.85:.04,elbowIdle=a.gk?-.72:-.32;
+    const armIdle=a.gk?-.85:.07,elbowIdle=a.gk?-.72:-.44;
     T.armX[i]=armIdle+(armG-armIdle)*g;T.elbow[i]=elbowIdle+(elbowG-elbowIdle)*g;
-    T.armZ[i]=sd*((a.gk?.42:.17)*(1-g)+(.12+.06*fast)*g);
+    T.armZ[i]=sd*((a.gk?.42:.11)*(1-g)+(.1+.06*fast)*g);
   });
   const fs=Math.sin(a.phase),fc=Math.cos(a.phase*1);
   T.pelYaw=(Fs[1]-Fs[0])*.14*g;T.chestYaw=-(Fs[1]-Fs[0])*.22*g;T.chestX=.06*fast*g;
   /* Both feet leave the grass between strides when running */
   {const st=.3+.03*(1-fast),q2=pp%.5;T.rootY=q2>st?.04*clamp((sN-.9)/1.4,0,1)*Math.sin(Math.PI*(q2-st)/(.5-st)):0}
   T.leanZ=clamp(-yawRate*.05,-.36,.36)*g+Math.sin(ts/1400+seed)*.012*(1-g);
+  /* Nobody stands still in a match: small ready steps, weight shifts, a keeper bouncing on his toes */
+  if(inMatch&&!a.act&&!a.skill&&!view.coach&&g<.6){
+    const idle=1-g/.6,env=.3+.7*smooth(clamp(.5+.9*Math.sin(ts/1900+seed*2.3),0,1)),rate=a.gk?3.2:2.4+((a.no*13)%7)*.09,q=ts/1000*rate+seed,w=Math.sin(q*Math.PI);
+    [0,1].forEach(i=>{const lift=Math.max(0,i?w:-w)*env*idle;T.hipX[i]-=.17*lift;T.knee[i]+=.36*lift;T.ankle[i]+=.1*lift});
+    T.rootY+=.005*Math.abs(w)*env*idle;T.leanZ+=.04*Math.sin(q*Math.PI*.5)*idle*(1-env*.5);T.pelYaw+=.05*Math.sin(q*Math.PI*.5)*idle;
+    T.armX[0]+=.12*w*env*idle;T.armX[1]-=.12*w*env*idle;
+  }
   /* Keep-ups for the hero on the home screen */
   if(a===GL.hero&&!inMatch&&GL.showHero&&!a.act){
     /* Keep-ups: each foot in turn rises to meet the ball, slightly ahead so the joints arrive on time */
@@ -1754,7 +1776,7 @@ function fxUpdate(dt,ts){
 }
 /* Light from behind lifts players off the grass */
 function rimify(mt){
-  mt.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\ngl_FragColor.rgb+=vec3(.62,.7,.9)*.42*pow(1.-clamp(abs(dot(normalize(normal),normalize(vViewPosition))),0.,1.),3.2);')};
+  mt.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\ngl_FragColor.rgb+=vec3(.62,.7,.9)*.27*pow(1.-clamp(abs(dot(normalize(normal),normalize(vViewPosition))),0.,1.),3.2);')};
   return mt;
 }
 
@@ -1785,7 +1807,7 @@ function buildPlayer(a){
   const root=new T.Group(),pelvis=B();pelvis.position.y=.46;root.add(pelvis);bones.push(pelvis);
   const chest=add(pelvis,0,.05,0),CY=-.51,PY=-.46,headG=add(chest,0,.91+CY,0),limbs={};
   [-1,1].forEach(sd=>{
-    const arm=add(chest,sd*.14,.755+CY,0),fore=add(arm,0,-.15,0),leg=add(pelvis,sd*.056,-.01,0),shin=add(leg,0,-.205,0),ankle=add(shin,0,-.205,0);
+    const arm=add(chest,sd*.128,.752+CY,0),fore=add(arm,0,-.15,0),leg=add(pelvis,sd*.056,-.01,0),shin=add(leg,0,-.205,0),ankle=add(shin,0,-.205,0);
     limbs[sd]={arm,fore,leg,shin,ankle};
   });
   root.updateMatrixWorld(true);
@@ -1802,8 +1824,8 @@ function buildPlayer(a){
     P(geo.hips,shortsC,pelvis,0,PY,0,{sz:.72});
     P(geo.collar,main,chest,0,.797+CY,0,{rx:Math.PI/2});P(geo.neck,a.skin,chest,0,.825+CY,0,{w:WB(headG,y=>SS(-.005,.03,y)*.6)});
     if(!lod)P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
-    if(hs===3&&lod){for(let i=0;i<14;i++){const an=i*2.399,yy=.03+i*.0046,r=.084-(i%5)*.004;P(geo.curl,hairC,headG,Math.cos(an)*r,yy,Math.sin(an)*r-.012)}}
-    else if(!lod)P(geo.hairCap,hairC,headG,0,.004,-.006,{rx:-.28,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1});
+    if(hs===3&&lod){const N=70;for(let i=0;i<N;i++){const ph=Math.acos(1-1.32*(i+.5)/N),th=i*2.39996,c=Math.cos(th);if(ph>Math.PI*(.5-.13*c+(c<0?.08*c*c:0)))continue;const sn=Math.sin(ph),r=.089+(i%3)*.0035;P(geo.curl,hairC,headG,Math.sin(th)*sn*r*.955,Math.cos(ph)*r,Math.cos(th)*sn*r*(c<0?1.075:1.01))}}
+    else if(!lod)P(geo.hairCap,hairC,headG,0,.002,0,{sx:hs===1?1.03:1,sy:hs===1?1.1:hs===2?.985:1.03,sz:hs===1?1.03:1});
     if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xf4f1ec,headG,sd*.032,.01,.073);P(geo.pupil,[0x3b2414,0x5a3a1c,0x2f5a7a,0x4a6a3a][a.no%4],headG,sd*.032,.01,.0815);P(geo.pupil2,0x070605,headG,sd*.032,.01,.0868);P(geo.brow,hairC,headG,sd*.033,.03,.08,{rz:sd*-.12})});P(geo.nose,a.skin,headG,0,-.017,.082,{sx:.72,sy:1.3,sz:.8})}
     [-1,1].forEach(sd=>{const l=limbs[sd];
       P(geo.joint,main,l.arm,0,-.006,0,{sx:.86,sy:1.02,sz:.92,w:WB(chest,y=>SS(-.02,.036,y)*.55)});P(geo.sleeve,main,l.arm,0,0,0,{w:WB(chest,y=>SS(-.03,.004,y)*.45)});P(geo.armU,a.skin,l.arm,0,0,0,{w:y=>y<-.08?[bid(l.fore),SS(-.11,-.158,y)*.5]:[bid(chest),SS(-.02,.012,y)*.4]});
@@ -1811,7 +1833,7 @@ function buildPlayer(a){
       P(geo.armL,gk?main:a.skin,l.fore,0,0,0,{w:WB(l.arm,y=>SS(-.03,.006,y)*.5)});P(geo.elbow,gk?main:a.skin,l.fore,0,.002,0,{w:WB(l.arm,y=>SS(-.012,.027,y)*.5)});if(lod){P(geo.hand,gk?0xfafafa:a.skin,l.fore,0,-.155,0);P(geo.thumb,gk?0xfafafa:a.skin,l.fore,sd*-.012,-.152,.016,{rz:sd*.5})}
       P(geo.shortLeg,shortsC,l.leg,0,-.04,0,{w:WB(pelvis,y=>SS(-.01,.064,y)*.7)});P(geo.limbT,a.skin,l.leg,0,0,0,{w:y=>y<-.11?[bid(l.shin),SS(-.16,-.222,y)*.55]:[bid(pelvis),SS(-.03,.02,y)*.5]});
       if(lod)P(geo.knee,a.skin,l.shin,0,0,0,{w:WB(l.leg,y=>SS(-.02,.034,y)*.5)});P(geo.limb,sockC,l.shin,0,0,0,{w:y=>y<-.11?[bid(l.ankle),SS(-.17,-.218,y)*.45]:[bid(l.leg),SS(-.03,.015,y)*.5]});if(lod)P(geo.sockBand,us_&&!gk?kit.main:main,l.shin,0,-.014,0);
-      P(geo.boot,bootC,l.ankle,0,-.011,.028,{sx:.86,sy:.9,sz:1.55});P(geo.sole,0x15171c,l.ankle,0,-.027,.03);
+      P(geo.boot,bootC,l.ankle,0,-.013,.03,{sx:.8,sy:.72,sz:1.72});P(geo.sole,0x15171c,l.ankle,0,-.0262,.032,{sx:.92,sz:1.06});P(geo.cuff,bootC,l.ankle,0,.004,.002);
     });
     bodyGeo=mergeParts(parts,bones);playerGeoCache.set(key,bodyGeo);
   }
@@ -1832,7 +1854,7 @@ function buildPlayer(a){
     const skinPart=(g,bone,mm)=>{const c=g.clone();c.applyMatrix4(mm);const n=c.attributes.position.count,si=new Uint16Array(n*4),sw=new Float32Array(n*4),b=bid(bone);for(let i=0;i<n;i++){si[i*4]=b;sw[i*4]=1}c.setAttribute('skinIndex',new T.BufferAttribute(si,4));c.setAttribute('skinWeight',new T.BufferAttribute(sw,4));return c};
     const hg=GL.headSkinGeo||(GL.headSkinGeo=skinPart(geo.head,headG,partM(headG,0,0,0,{sx:.96,sy:1.05})));
     extra.push(new T.SkinnedMesh(hg,faceMat(a.skin)));
-    if(hs!==3){GL.hairGeos=GL.hairGeos||{};const hg2=GL.hairGeos[hs]||(GL.hairGeos[hs]=skinPart(geo.hairCap,headG,partM(headG,0,.01,-.012,{rx:-.52,sx:hs===1?1.04:1,sy:hs===1?1.16:hs===2?.9:1,sz:hs===1?1.06:1})));extra.push(new T.SkinnedMesh(hg2,hairMat(hairC)))}
+    if(hs!==3){GL.hairGeos=GL.hairGeos||{};const hg2=GL.hairGeos[hs]||(GL.hairGeos[hs]=skinPart(geo.hairCap,headG,partM(headG,0,.002,0,{sx:hs===1?1.03:1,sy:hs===1?1.1:hs===2?.985:1.03,sz:hs===1?1.03:1})));extra.push(new T.SkinnedMesh(hg2,hairMat(hairC)))}
   }
   [body,shirt,...extra].forEach(o=>{o.castShadow=true;o.frustumCulled=false;root.add(o);o.bind(skeleton,new T.Matrix4())});
   headG.scale.setScalar(.84);headG.position.y-=.012;
@@ -2419,13 +2441,18 @@ function renderPicker(){
   $('toLevel').disabled=!sel;
 }
 const starText=n=>'★'.repeat(n)+'☆'.repeat(3-n);
+let levelTab='match';
 function renderLevels(){
   const sel=slotOf();
   $('summary').textContent=`${setup.name} · ${p2(FORMATS[setup.fmt].name)} · ${sel?roleName(sel):''}`;
   renderNextGoal($('nextGoal'));
   {const st=dayStreak(loadProgress());if(st>=2){const ch=document.createElement('span');ch.className='day-chip';ch.textContent=t(`${st} dagen`,`${st} jours`);$('summary').appendChild(ch)}}
   const box=$('levels');box.innerHTML='';
-  LEVELS.forEach((l,i)=>{
+  const themes=THEMES.filter(x=>x.k==='weak'?weakList().length>0:themePool(x.k).length>=2),cs=coachSeries();
+  const tabs=[['match',t('Matchen','Matchs')]];if(themes.length)tabs.push(['idea',t('Oefenen','Entraînement')]);if(cs.length)tabs.push(['coach',`${t('Coach','Coach')} (${cs.length})`]);
+  if(!tabs.some(x=>x[0]===levelTab))levelTab='match';
+  if(tabs.length>1){const seg=document.createElement('div');seg.className='seg lv-tabs';seg.setAttribute('role','tablist');tabs.forEach(([k,txt])=>{const b=document.createElement('button');b.id='tab-'+k;b.textContent=txt;b.setAttribute('role','tab');b.setAttribute('aria-pressed',k===levelTab);b.setAttribute('aria-selected',k===levelTab);b.onclick=()=>{levelTab=k;renderLevels()};seg.appendChild(b)});box.appendChild(seg)}
+  if(levelTab==='match')LEVELS.forEach((l,i)=>{
     if(l.hidden)return;
     const n=store.get(starKey(setup.fmt,i),0),b=document.createElement('button');b.className='level';b.id='level'+i;
     if(l.live)b.classList.add('live');
@@ -2434,11 +2461,9 @@ function renderLevels(){
   });
   const label=txt=>{const h=document.createElement('p');h.className='section-label lv-label';h.textContent=txt;box.appendChild(h)};
   const extra=(cls,id,mark,title,sub,score,go)=>{const b=document.createElement('button');b.className='level '+cls;b.id=id;b.innerHTML='<span class="num"></span><span><strong></strong><small></small></span><span class="stars"></span>';b.querySelector('.num').textContent=mark;b.querySelector('strong').textContent=title;b.querySelector('small').textContent=sub;b.querySelector('.stars').textContent=score;b.onclick=go;box.appendChild(b)};
-  const themes=THEMES.filter(x=>x.k==='weak'?weakList().length>0:themePool(x.k).length>=2);
-  if(themes.length){label(t('Oefen één idee','Travaille une idée'));
+  if(levelTab==='idea'){label(t('Oefen één idee','Travaille une idée'));
     themes.forEach(x=>{const best=store.get(themeKey(x.k),0);extra(x.k==='weak'?'theme weak':'theme','theme-'+x.k,x.k==='weak'?'!':'★',p2(x.n),x.k==='weak'?t(`${weakList().length} situaties om te herhalen`,`${weakList().length} situations à revoir`):p2(x.s),best&&x.k!=='weak'?`${best}/${THEME_N}`:'',()=>startMatch(4,{k:x.k}))})}
-  const cs=coachSeries();
-  if(cs.length){label(t('Van je coach','De ton coach'));
+  if(levelTab==='coach'){label(t('Van je coach','De ton coach'));
     cs.forEach(x=>{const sl=FORMATS[x.f].slots.find(s=>s.id===x.p),best=store.get('fts-cbest-'+setup.name.toLowerCase()+'-'+x.id,null);extra('coachs','cs-'+x.id,'C',x.t||t('Coach','Coach'),`${p2(FORMATS[x.f].name)} · ${roleName(sl)} · ${x.q.length} ${t('situaties','situations')}`,best===null?'':`${best}/${x.q.length}`,()=>playCoach(x))})}
 }
 function setLang(l){
@@ -2818,8 +2843,9 @@ async function liveResolve(c,a,ms,total,carrier,st,my){
   const R=Math.random();
   if(isOpen){
     if(!bad){
-      const attack=good&&role!=='GK'&&me.y<74;
-      if(attack&&R<.5){
+      /* Good play from the back leads to goals too: the striker finishes your pass */
+      const attack=good&&R<(role==='GK'?.14:me.y<74?.5:.3);
+      if(attack){
         const scored=await sceneGoal(carrier,my);if(!alive())return null;
         if(scored)L.myGoals++;if(st.counter)L.counterGoals++;
         liveToast(scored?t(`Goal van ${setup.name}!`,`But de ${setup.name} !`):t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),'good');
@@ -3069,6 +3095,7 @@ function finish(){
   const rep_=$('rReport');rep_.innerHTML=G.log.map(k=>`<i class="${k==='bad'?'':k}"></i>`).join('');rep_.setAttribute('aria-label',`${G.open+G.dicht}/${G.n}`);
   $('rOpen').textContent=G.nOpen?`${G.open}/${G.nOpen}`:'–';$('rDicht').textContent=G.nDicht?`${G.dicht}/${G.nDicht}`:'–';
   $('rTip').textContent=G.open+G.dicht===G.n?t(`Alles goed, ${setup.name}! Jij bent een baas op het veld.`,`Tout est bon, ${setup.name} ! Tu es un chef sur le terrain.`):G.open<G.dicht?t('Oefen OPEN: wij hebben de bal, maak het veld groot.','Entraîne-toi à OUVRIR : on a le ballon, rends le terrain grand.'):G.dicht<G.open?t('Oefen DICHT: zij hebben de bal, maak het veld klein.','Entraîne-toi à FERMER : ils ont le ballon, rends le terrain petit.'):t('Kijk altijd eerst: wie heeft de bal?','Regarde toujours d’abord : qui a le ballon ?');
+  {const rr=$('rRating');if(G.lv===3&&G.n){const note=Math.round(clamp(3.5+(G.open+G.dicht)/G.n*5+Math.min(1,G.fast/8)*.7+Math.min(.8,(G.live.myGoals||0)*.3),3,10)*2)/2,txt=String(note).replace('.',lang==='fr'?',':',');rr.hidden=false;rr.textContent=t(`Jouw cijfer: ${txt}/10`,`Ta note : ${txt}/10`)+(note>=8.5?' · '+t('Man van de match!','Homme du match !'):'')}else rr.hidden=true}
   const news=recordMatch(n);
   if(GL.on){GL.hero=me||us[us.length-1];if(G.us>=G.them){setAct(GL.hero,'cheer',60000);GL.jump=G.us>G.them?.8:.3}else setAct(GL.hero,'despair',60000)}
   sfx.whistle();show('result');
@@ -3105,6 +3132,7 @@ const addUnique=(list,v)=>{if(!list.includes(v))list.push(v)};
 function recordMatch(starsWon){
   /* A coach trying out his own moments does not count for the child */
   if(G.lv===5&&G.opt&&!G.opt.id)return{challenges:[],cups:[]};
+  if(!G.n){G.n=ACTIONS;G.nOpen=G.nDicht=ACTIONS/2}
   const p=loadProgress(),slot=slotOf();
   p.matches++;p.good+=G.open+G.dicht;p.open+=G.open;p.dicht+=G.dicht;p.goals+=G.us;p.fast+=G.fast;p.streak=Math.max(p.streak,G.best);
   if(G.us>G.them)p.wins++;if(G.them===0)p.clean++;
@@ -3284,13 +3312,14 @@ function renderCabinet(){
     });
     box.appendChild(d);
   };
-  section(t('Thema’s en coach','Thèmes et coach'));
-  EXTRA_CUPS.forEach(card);
+  section(t('Eerste bekers','Premiers trophées'));CUPS.forEach(card);
   section(t('Live match','Match en direct'));
   bigCup(LIVE_LEGEND,t(`Win alle ${LIVE_CUPS.length} Live bekers.`,`Gagne les ${LIVE_CUPS.length} trophées du Match en direct.`));
   LIVE_CUPS.filter(c=>c.group!=='livepos').forEach(card);
   section(t('Live match · per plek (5 tegen 5)','Match en direct · par poste (5 contre 5)'));
   LIVE_CUPS.filter(c=>c.group==='livepos').sort((a,b)=>(b.id==='lv-p-'+setup.pos&&setup.fmt===5)-(a.id==='lv-p-'+setup.pos&&setup.fmt===5)).forEach(card);
+  section(t('Thema’s en coach','Thèmes et coach'));
+  EXTRA_CUPS.forEach(card);
   section(t('De grote bekers','Les grands trophées'));
   bigCup(LEGEND_CUP,t('Win de 5 gouden bekers van 5 tegen 5.','Gagne les 5 trophées d’or du 5 contre 5.'));
   bigCup(FINAL_CUP,t('Win de 6 eerste bekers.','Gagne les 6 premiers trophées.'));
@@ -3298,7 +3327,6 @@ function renderCabinet(){
     section(t(`5 tegen 5 · ${x.role}`,`5 contre 5 · ${x.rf}`));
     POS_CUPS.filter(c=>c.group===x.k).forEach(card);
   });
-  section(t('Eerste bekers','Premiers trophées'));CUPS.forEach(card);
   section(t('Gestes','Gestes techniques'));SKILL_CUPS.forEach(card);
   const known=SKILLS.filter(k=>p.skills.includes(k.id));
   SKILLS.forEach(k=>{const has=known.includes(k),d=document.createElement('div');d.className='cup skill-card'+(has?' won':'');d.innerHTML='<div><strong></strong><ul><li></li></ul></div>';d.querySelector('strong').textContent=(has?'✓ ':'')+p2(k.n);d.querySelector('li').textContent=has?p2(k.how):(k.need?t('Nog niet gedaan. Tip: kies goed én snel.','Pas encore fait. Astuce : choisis bien et vite.'):t('Nog niet gedaan. Kies een goede plek.','Pas encore fait. Choisis une bonne place.'));box.appendChild(d)});
@@ -3381,7 +3409,7 @@ function frame(rawTs){
   requestAnimationFrame(frame);
 }
 migratePlayers();
-function announceCoach(){const got=importFromHash();if(got){if(setup.step===4)renderLevels();const n=$('coachNote');n.textContent=t(`Nieuwe reeks van de coach: “${got.t||'Coach'}” (${got.q.length} situaties). Kies je speler: je vindt ze bij je matchen.`,`Nouvelle série du coach : « ${got.t||'Coach'} » (${got.q.length} situations). Choisis ton joueur : elle est dans tes défis.`);n.hidden=false}}
+function announceCoach(){const got=importFromHash();if(got){levelTab='coach';if(setup.step===4)renderLevels();const n=$('coachNote');n.textContent=t(`Nieuwe reeks van de coach: “${got.t||'Coach'}” (${got.q.length} situaties). Kies je speler: je vindt ze bij je matchen.`,`Nouvelle série du coach : « ${got.t||'Coach'} » (${got.q.length} situations). Choisis ton joueur : elle est dans tes défis.`);n.hidden=false}}
 announceCoach();addEventListener('hashchange',announceCoach);
 initGL();
 setSoundIcons();setTempo(tempo);setLang(store.get('veld-lang','nl')==='fr'?'fr':'nl');goStep(playerNames().length?0:1);
