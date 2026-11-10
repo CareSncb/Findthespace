@@ -2841,7 +2841,7 @@ async function runLive(my){
   let st={poss:firstBall,target:firstBall==='open'?[50,76]:[50,62],turn:false,counter:false};
   kickoffReset();
   const ik='fts-liveintro-'+setup.name.toLowerCase();
-  if(!store.get(ik,false)){store.set(ik,true);banner(t('Tik op het veld om te lopen. De match stopt nooit!','Touche le terrain pour courir. Le match ne s’arrête jamais !'));await wait(2200);if(my!==token)return;hideBanner()}
+  if(!store.get(ik,false)){store.set(ik,true);banner(t('Tik op het veld om te lopen. De anderen wachten niet op jou!','Touche le terrain pour courir. Les autres ne t’attendent pas !'));await wait(2200);if(my!==token)return;hideBanner()}
   for(let k=0;k<LIVE_N;k++){
     if(k===half){
       $('liveToast').hidden=true;setDock('');setBar(0);sfx.whistle();banner(t('Rust','Mi-temps'),true);
@@ -2863,8 +2863,14 @@ async function runLive(my){
 async function flowPhase(pick,st,my){
   const slot=slotOf(),k=G.i,lvl=LEVELS[G.lv];
   view.marker=null;hideBanner();ball.fall=0;
-  const total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(k/(LIVE_N-1)))*(tempo==='slow'?1.7:1)*(G.pace||1)*1000;
+  const total=(2500-600*(k/(LIVE_N-1)))*(tempo==='slow'?1.5:1)*clamp(G.pace||1,.85,1.25);
   const c=compose(pick.sit,slot,pick.flip);c.sit=pick.sit;
+  /* Team-mates support the ball like a real team: forwards go ahead of it, the back line moves up behind it */
+  {const F=FORMATS[setup.fmt],by=c.ball[1],free=q=>[c.ideal,...(c.alts||[])].every(z=>Math.hypot(z.x-q.x,z.y-q.y)>=14);
+    c.pos.us.forEach((o,i)=>{if(i===c.meIdx||i===0||(c.isOpen&&i===c.carrier))return;const role=F.slots[i].role;let y=o.y;
+      if(c.isOpen){if(role==='ST')y=Math.min(y,Math.max(16,by-16));else if(role==='W'||role==='CM')y=Math.min(y,Math.max(22,by-7));else y=Math.min(y,Math.max(40,by+24))}
+      else{if(role==='ST')y=Math.max(y,Math.min(by-4,70));else if(role==='W'||role==='CM')y=Math.max(y,Math.min(by+6,104))}
+      const q={x:o.x,y:clamp(y,10,128)};if(q.y!==o.y&&free(q)&&!c.pos.us.some((z,j2)=>j2!==i&&Math.hypot(z.x-q.x,z.y-q.y)<9))o.y=q.y})}
   /* Everyone except the child flows into the new shape at running speed */
   c.pos.us.forEach((o,i)=>{if(us[i]!==me)runTo(us[i],o.x,o.y,380,1500)});
   c.pos.them.forEach((o,i)=>runTo(them[i],o.x,o.y,380,1500));
@@ -2881,7 +2887,6 @@ async function flowPhase(pick,st,my){
     if(a.kind!=='tap'){done=true;finish();return}
     a.at=clock;if(!first)first=a;last=a;view.marker={x:a.x,y:a.y};
     tween(me,{x:a.x,y:a.y},runDur(me,a.x,a.y,200,1100),'run');
-    deciding.earlyAt=clock+FLOW_SETTLE;
   }};
   /* The ball goes to the new carrier: a pass between team-mates, or it rolls after a restart */
   const passP=(async()=>{
@@ -2895,7 +2900,7 @@ async function flowPhase(pick,st,my){
       if(my!==token)return;ball.owner=carrier;
     }
     /* The carrier keeps moving with the ball while the child decides */
-    const dir=carrier.gk?0:(c.isOpen?-4:4),left=total-(clock-t0);
+    const dir=carrier.gk?0:(c.isOpen?-7:7),left=total-(clock-t0);
     if(dir&&!done&&left>250)tween(carrier,{x:carrier.x,y:clamp(carrier.y+dir,8,132)},left,'l');
   })();
   if(GL.on)setTimeout(()=>{if(my!==token||done)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+(ball.x-a.x)*.06+Math.sin(i*2.3)*1.6,5,95),y:clamp(a.y+(ball.y-a.y)*.06+Math.cos(i*1.7)*1.6,8,132)},Math.max(300,total-(clock-t0)),'l')})},700);
@@ -2925,41 +2930,57 @@ async function flowResolve(c,a,ms,total,carrier,st,my){
   view.marker=null;
   teamShift(c,carrier);
   if(bad)G.demos.push({c,j,title:j.res==='late'?t('Te laat!','Trop tard !'):(isOpen?t('Bal kwijt!','Ballon perdu !'):t('Tegengoal!','But encaissé !')),carrier,snap,mine});
-  const R=Math.random();
+  const R=Math.random(),mates=us.filter(x=>x!==me&&x!==carrier&&!x.gk);
+  /* The best other option for the carrier: the team-mate with the most room */
+  const freeMate=()=>mates.slice().sort((p,q)=>Math.min(...them.map(o=>dist(o,q)))-Math.min(...them.map(o=>dist(o,p))))[0]||gkUs;
   if(isOpen){
-    if(!bad){
-      /* Good play from the back leads to goals too: the striker finishes your pass */
-      if(good&&R<(role==='GK'?.22:me.y<74?.5:.34)){
-        const scored=await flowShot(my);if(!alive()||scored===null)return null;
+    if(good){
+      /* You are free: you get the ball. Near their goal that becomes a shot, from deep your pass finds the striker */
+      if(R<(role==='GK'?.2:me.y<74?.5:.32)){
+        const scored=await flowShot(my,true);if(!alive()||scored===null)return null;
         if(scored)L.myGoals++;if(st.counter)L.counterGoals++;
         liveToast(scored?t(`Goal van ${setup.name}!`,`But de ${setup.name} !`):t(`Assist van ${setup.name}!`,`Passe décisive de ${setup.name} !`),'good');
         return{poss:'dicht',target:[50,62],turn:false,counter:false};
       }
       await flowPassTo(me,my);if(!alive())return null;
-      if(Math.random()<(good?.4:.6)){
+      if(Math.random()<.22){
         const pt=await flowMateLoses(my);if(!alive()||!pt)return null;
         liveToast(t('Bal kwijt! Snel DICHT!','Ballon perdu ! Vite, FERME !'),'warn');
         return{poss:'dicht',target:[pt.x,pt.y],turn:true,counter:false};
       }
       return{poss:'open',target:[clamp(me.x,10,90),clamp(me.y-16,20,130)],turn:false,counter:st.counter};
     }
-    const pt=await flowIntercept(carrier,my);if(!alive()||!pt)return null;
-    return{poss:'dicht',target:[pt.x,pt.y],turn:true,counter:false};
+    /* You are not free: the team plays on without you. Sometimes it still works, sometimes the ball is lost */
+    const lose=j.res==='close'?.2:.42;
+    if(Math.random()<lose){
+      const pt=await flowIntercept(carrier,my);if(!alive()||!pt)return null;
+      return{poss:'dicht',target:[pt.x,pt.y],turn:true,counter:false};
+    }
+    if(ball.y<56&&Math.random()<.16){
+      const sc=await flowShot(my,false);if(!alive()||sc===null)return null;
+      return{poss:'dicht',target:[50,62],turn:false,counter:false};
+    }
+    const m=freeMate();await flowPassTo(m,my);if(!alive())return null;
+    return{poss:'open',target:[clamp(m.x,10,90),clamp(m.y-6,20,130)],turn:false,counter:false};
   }
   if(good){await flowWin(my);if(!alive())return null;return{poss:'open',target:[me.x,me.y],turn:true,counter:true}}
   if(j.res==='close'){await flowSave(my);if(!alive())return null;liveToast(t('Gered! Nu OPEN.','Sauvé ! Maintenant OUVRE.'),'warn');return{poss:'open',target:[ball.x,ball.y],turn:true,counter:false}}
-  if(ball.y>84||R<.4){await flowConceded(carrier,my);if(!alive())return null;return{poss:'open',target:[50,76],turn:false,counter:false}}
+  if(ball.y>88||R<.22){await flowConceded(carrier,my);if(!alive())return null;return{poss:'open',target:[50,76],turn:false,counter:false}}
+  /* They keep playing: a pass forward to a team-mate, or the carrier runs at our goal */
+  const fw=them.filter(x=>x!==carrier&&!x.gk&&x.y>carrier.y+4).sort((p,q)=>q.y-p.y)[0];
+  if(fw&&Math.random()<.6){const ty=clamp(fw.y+8,20,106);runTo(fw,fw.x,ty,220,520);await kick(fw.x,ty,clamp(dist(ball,{x:fw.x,y:ty})*6,280,700),1.2);if(!alive())return null;ball.owner=fw;return{poss:'dicht',target:[fw.x,ty],turn:false,counter:false}}
   const tx=clamp(50+(carrier.x-50)*.7,8,92),ty=clamp(carrier.y+18,20,104);
   await tween(carrier,{x:tx,y:ty},runDur(carrier,tx,ty,300,700),'run');if(!alive())return null;
   return{poss:'dicht',target:[tx,ty],turn:false,counter:false};
 }
 /* Short, flowing actions: no waiting between them */
 async function flowPassTo(target,my){const far=dist(ball,target);await kick(target.x,target.y,clamp(far*6.5,260,700),Math.min(1.6,far*.03));if(my!==token)return;ball.owner=target;setAct(target,'trap',240)}
-async function flowShot(my){
-  await flowPassTo(me,my);if(my!==token)return null;
+async function flowShot(my,viaMe){
+  if(viaMe){await flowPassTo(me,my);if(my!==token)return null}
   let shooter=me,scored=true;
-  if(me.y>64){scored=false;shooter=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0]||me;const tx=clamp(shooter.x,28,72),ty=30;runTo(shooter,tx,ty,300,700);await kick(tx,ty,clamp(dist(ball,{x:tx,y:ty})*6,380,750),2.6);if(my!==token)return null;ball.owner=shooter}
+  if(!viaMe||me.y>64){scored=false;shooter=us.filter(a=>a!==me&&!a.gk).sort((a,b)=>a.y-b.y)[0]||me;const tx=clamp(shooter.x,28,72),ty=30;runTo(shooter,tx,ty,300,700);await kick(tx,ty,clamp(dist(ball,{x:tx,y:ty})*6,380,750),2.6);if(my!==token)return null;ball.owner=shooter}
   else{const tx=clamp(me.x+(50-me.x)*.5,12,88),ty=Math.max(22,Math.min(me.y-8,34));await tween(me,{x:tx,y:ty},runDur(me,tx,ty,240,650),'run');if(my!==token)return null}
+  if(!viaMe)liveToast(t('Goal! Maar zonder jou: loop mee vrij.','But ! Mais sans toi : démarque-toi aussi.'),'warn');
   const F=FORMATS[setup.fmt],sx=F.line[0]+3+Math.random()*(F.line[1]-F.line[0]-6),gd=sx>50?-1:1;
   tween(gkThem,{x:50+gd*9},360,'out');setAct(gkThem,'dive',1200,{dir:-gd});
   await kick(sx,3,320,3.5,{power:true});if(my!==token)return null;
