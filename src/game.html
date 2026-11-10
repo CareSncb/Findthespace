@@ -349,6 +349,15 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
 .ce-share{display:flex;flex-direction:column;gap:7px}
 .lv-tabs{display:flex;width:100%;margin:2px 0 4px}.lv-tabs button{flex:1;min-height:46px;font-size:17px}
 .rating{font-family:var(--display);font-size:26px;color:var(--gold);text-align:center;margin:0}
+.level.daily{background:linear-gradient(100deg,#f5a623,#b86500)!important;box-shadow:0 6px 18px #f5a62355!important}
+.limit-card{background:#0a1529ee;border:1px solid var(--gold);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px;text-align:center}
+.limit-card b{font-family:var(--display);font-size:30px;color:var(--gold);font-weight:400}.limit-card span{font-size:18px}
+.looks{display:flex;flex-direction:column;gap:6px}.look-row{display:flex;gap:6px;flex-wrap:wrap}
+.look-row{flex-wrap:nowrap}.look-row button{flex:1 1 0;min-width:0;min-height:40px;border-radius:10px;border:2px solid #ffffff55;background:#ffffff14;color:var(--chalk);font-weight:700;font-size:13px;padding:0 2px}
+.look-row button.swatch{flex:none;border-radius:50%;padding:0;width:38px;min-height:38px}
+.look-row button[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+.pwa-note{display:flex;gap:8px;align-items:flex-start;background:#0a1529ee;border:1px solid #ffffff44;border-radius:12px;padding:9px 10px;font-size:14px;margin-bottom:8px}
+.pwa-note button{min-width:36px;min-height:36px;border-radius:9px;background:#ffffff1f;color:var(--chalk);font-weight:800}
 </style>
 
 <canvas id="gl" aria-hidden="true"></canvas>
@@ -362,6 +371,7 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
   </div>
 
   <div class="coach-note" id="coachNote" role="status" hidden></div>
+  <div class="pwa-note" id="pwaNote" hidden><span>Tip: tik in Safari op Delen en dan op “Zet op beginscherm”. Zo opent het spel als een app.<br><span lang="fr">Astuce : dans Safari, touche Partager puis « Sur l’écran d’accueil ». Le jeu s’ouvre alors comme une app.</span></span><button id="pwaClose" aria-label="Sluiten">✕</button></div>
   <div class="step" id="s0" hidden>
     <h1>Find the <em>Space</em></h1>
     <h2 data-fr="Qui joue ?">Wie speelt er?</h2>
@@ -390,6 +400,10 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
       <label data-fr="Mon maillot">Mijn shirt</label>
       <div class="kits" id="kits"></div>
       <p class="kit-hint" id="kitHint"></p>
+    </div>
+    <div>
+      <label data-fr="Mon joueur">Mijn speler</label>
+      <div class="looks" id="looks"></div>
     </div>
     <div class="row">
       <strong data-fr="Langue">Taal</strong>
@@ -480,6 +494,7 @@ input[type=text]:focus{border-color:var(--gold);outline:0;box-shadow:0 0 0 3px #
   <div id="rSkills" hidden></div>
   <div id="rNew"></div>
   <div class="next-goal" id="rNext"></div>
+  <button class="cab-btn" id="rShare" hidden></button>
   <button class="cab-btn" id="rCab"></button>
   <div class="actions">
     <button class="btn" id="rMenu" data-fr="Autre poste">Andere plek</button>
@@ -951,6 +966,10 @@ const EXTRA_CUPS=[
  {id:'th-weak',tier:['Thema','Thème'],n:['Niet Opgeven','Je Ne Lâche Rien'],col:['#ffd0e8','#c2417f'],ch:[
   C('wk1','Herstel 5 oude fouten in “Mijn zwakke punten”','Corrige 5 anciennes erreurs dans « Mes points faibles »',p=>Object.values(p.weakFix||{}).reduce((a,b)=>a+b,0),5),
   C('wk2','Herstel er 25','Corrige-en 25',p=>Object.values(p.weakFix||{}).reduce((a,b)=>a+b,0),25)]},
+ {id:'daily',tier:['Elke dag','Chaque jour'],n:['Trouwe Speler','Fidèle au Poste'],col:['#fff1a8','#e0a800'],ch:[
+  C('dd3','Speel de uitdaging van de dag op 3 dagen','Joue le défi du jour 3 jours',p=>(p.dailyDays||[]).length,3),
+  C('dd10','Speel ze op 10 dagen','Joue-le 10 jours',p=>(p.dailyDays||[]).length,10),
+  C('ddp','Alles goed in een uitdaging van de dag','Tout bon dans un défi du jour',p=>p.dailyPerfect||0,1)]},
  {id:'coach-pupil',tier:['Coach','Coach'],n:['Leerling van de Coach','Élève du Coach'],col:['#ffe067','#c78f00'],ch:[
   C('cs1','Speel een reeks van je coach','Joue une série de ton coach',p=>p.coachDone||0,1),
   C('cs5','Speel 5 reeksen van je coach','Joue 5 séries de ton coach',p=>p.coachDone||0,5),
@@ -999,8 +1018,9 @@ function weakList(){
   const p=loadProgress(),miss=(p.stats&&p.stats.miss)||{},fix=p.weakFix||{};
   return rolePool().map(x=>{const id=SITS.indexOf(x);return{x,v:(miss[id]||0)-(fix[id]||0)}}).filter(o=>o.v>0).sort((a,b)=>b.v-a.v).map(o=>o.x);
 }
-function themePool(k){return k==='weak'?weakList():rolePool().filter(x=>x.th===k)}
+function themePool(k){return k==='weak'?weakList():k==='daily'?rolePool():rolePool().filter(x=>x.th===k)}
 function pickTheme(k){
+  if(k==='daily')return dailyList();
   const pool=themePool(k);if(!pool.length)return [];
   const out=[];let bag=k==='weak'?pool.slice(0,THEME_N):shuffle(pool.slice());
   while(out.length<THEME_N){if(!bag.length)bag=shuffle(pool.slice());out.push(bag.shift())}
@@ -1523,7 +1543,7 @@ function buildGeo(){
    head,neck:new T.CylinderGeometry(.029,.035,.064,24),ear:new T.SphereGeometry(.019,10,8),nose:new T.SphereGeometry(.013,10,8),
    eye:new T.SphereGeometry(.0125,12,10),pupil:new T.SphereGeometry(.0072,10,8),pupil2:new T.SphereGeometry(.0038,8,6),brow:new T.BoxGeometry(.026,.0045,.006),
    hairCap:hairShape(),curl:new T.IcosahedronGeometry(.0165,1),
-   boot,sole,thumb,cuff:new T.CylinderGeometry(.027,.03,.026,20),sockBand:new T.CylinderGeometry(.039,.037,.034,16),band:new T.CylinderGeometry(.04,.04,.03,12),collar:new T.TorusGeometry(.033,.007,8,20)
+   pony:new T.SphereGeometry(.028,18,14),boot,sole,thumb,cuff:new T.CylinderGeometry(.027,.03,.026,20),sockBand:new T.CylinderGeometry(.039,.037,.034,16),band:new T.CylinderGeometry(.04,.04,.03,12),collar:new T.TorusGeometry(.033,.007,8,20)
   };
 }
 /* A painted face for every skin tone: lips, eyelids, cheeks and soft shadows */
@@ -1798,8 +1818,10 @@ function buildPlayer(a){
   root.updateMatrixWorld(true);
   const bid=b=>bones.indexOf(b),skeleton=new T.Skeleton(bones);
   /* Body shares one material, colour lives in the vertices */
-  const hairC=[0x1c1410,0x3b2413,0x0f0f12][a.hair],boots=[0x0c0f16,0xf2f4f8,0xff6a13,0x12d6c5,0xffd21f],bootC=boots[(a.no*3+(us_?0:1))%boots.length];
-  const shortsC=gk?0x13332a:us_?0x141822:0xf4f6fb,sockC=gk?main:us_?0xffffff:0x2a6be2,hs=a.no%4;
+  /* The child's own player wears the look he chose */
+  {const lk=(a.me||a===GL.hero)&&setup.look;if(lk){a.skin=SKIN[lk.skin]||a.skin;a.hair=lk.hc;a.hs=lk.hs}}
+  const hairC=[0x1c1410,0x3b2413,0x0f0f12,0xc9a25a,0x8a3b1c][a.hair],boots=[0x0c0f16,0xf2f4f8,0xff6a13,0x12d6c5,0xffd21f],bootC=boots[(a.no*3+(us_?0:1))%boots.length];
+  const shortsC=gk?0x13332a:us_?0x141822:0xf4f6fb,sockC=gk?main:us_?0xffffff:0x2a6be2,hs=a.hs!==undefined?a.hs:a.no%4;
   const key=[a.skin,hairC,bootC,main,shortsC,sockC,hs,lod,gk?1:0,a.me?1:0,us_&&!gk?kit.main:''].join('|');
   let bodyGeo=playerGeoCache.get(key);
   if(!bodyGeo){
@@ -1811,6 +1833,7 @@ function buildPlayer(a){
     if(!lod)P(geo.head,a.skin,headG,0,0,0,{sx:.96,sy:1.05});
     if(hs===3&&lod){const N=70;for(let i=0;i<N;i++){const ph=Math.acos(1-1.32*(i+.5)/N),th=i*2.39996,c=Math.cos(th);if(ph>Math.PI*(.5-.13*c+(c<0?.08*c*c:0)))continue;const sn=Math.sin(ph),r=.089+(i%3)*.0035;P(geo.curl,hairC,headG,Math.sin(th)*sn*r*.955,Math.cos(ph)*r,Math.cos(th)*sn*r*(c<0?1.075:1.01))}}
     else if(!lod)P(geo.hairCap,hairC,headG,0,.002,0,{sx:hs===1?1.03:1,sy:hs===1?1.1:hs===2?.985:1.03,sz:hs===1?1.03:1});
+    if(hs===4){P(geo.pony,hairC,headG,0,-.014,-.108,{rx:.38,sx:.78,sy:1.95,sz:.78});P(geo.curl,hairC,headG,0,.03,-.092,{sx:1.5,sy:1.4,sz:1.4})}
     if(lod){[-1,1].forEach(sd=>{P(geo.ear,a.skin,headG,sd*.086,.004,-.002,{sz:.65});P(geo.eye,0xf4f1ec,headG,sd*.032,.01,.073);P(geo.pupil,[0x3b2414,0x5a3a1c,0x2f5a7a,0x4a6a3a][a.no%4],headG,sd*.032,.01,.0815);P(geo.pupil2,0x070605,headG,sd*.032,.01,.0868);P(geo.brow,hairC,headG,sd*.033,.03,.08,{rz:sd*-.12})});P(geo.nose,a.skin,headG,0,-.017,.082,{sx:.72,sy:1.3,sz:.8})}
     [-1,1].forEach(sd=>{const l=limbs[sd];
       P(geo.joint,main,l.arm,0,-.006,0,{sx:.86,sy:1.02,sz:.92,w:WB(chest,y=>SS(-.02,.036,y)*.55)});P(geo.sleeve,main,l.arm,0,0,0,{w:WB(chest,y=>SS(-.03,.004,y)*.45)});P(geo.armU,a.skin,l.arm,0,0,0,{w:y=>y<-.08?[bid(l.fore),SS(-.11,-.158,y)*.5]:[bid(chest),SS(-.02,.012,y)*.4]});
@@ -2034,6 +2057,7 @@ function drawGLOverlay(){
     groundEllipse(g.x,g.y,7.4,'rgba(116,224,138,.45)','#c9f9d4',3);
     const fs=Math.max(15,4.6*U*b.s);c.font=`${fs}px "Barlow Condensed","Arial Black",sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineWidth=4;c.strokeStyle='#0b0f18';const lab=t('HIER!','ICI !');c.strokeText(lab,clamp(b.x,28,W-28),b.y-fs*1.3);c.fillStyle='#d6ffe0';c.fillText(lab,clamp(b.x,28,W-28),b.y-fs*1.3);
   }
+  if(view.hint){const h=view.hint,pul=reduced?0:Math.sin(clock/260)*1.2;groundEllipse(h.x,h.y,h.r+pul,'rgba(255,227,77,.14)','rgba(255,227,77,.85)',2,[10,8])}
   if(view.marker){const o=proj(view.marker.x,view.marker.y),m=3*U*o.s;c.strokeStyle='#ffe34d';c.lineWidth=3;c.beginPath();c.moveTo(o.x-m,o.y-m*.6);c.lineTo(o.x+m,o.y+m*.6);c.moveTo(o.x+m,o.y-m*.6);c.lineTo(o.x-m,o.y+m*.6);c.stroke()}
   /* Ball trail while it flies */
   if(!ball.owner&&ball.from){const o=GL.projAt(ball.x,ball.y,ball.z+1.7);ball.trail.push({x:o.x,y:o.y});if(ball.trail.length>9)ball.trail.shift();ball.trail.forEach((q,i)=>{c.globalAlpha=(i+1)/ball.trail.length*.4;c.fillStyle='#fff';c.beginPath();c.arc(q.x,q.y,(i+1)*.75,0,7);c.fill()});c.globalAlpha=1}else ball.trail.length=0;
@@ -2301,6 +2325,7 @@ function draw(){
     groundEllipse(g.x,g.y,7,'rgba(116,224,138,.42)','#b9f5c5',2.6);
     const fs=Math.max(13,4.3*U*b.s);c.font=`${fs}px "Barlow Condensed","Arial Black",sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineWidth=3;c.strokeStyle='#0b0f18';const lab=t('HIER!','ICI !');c.strokeText(lab,clamp(b.x,28,W-28),b.y-fs*1.2);c.fillStyle='#d6ffe0';c.fillText(lab,clamp(b.x,28,W-28),b.y-fs*1.2);
   }
+  if(view.hint){const h=view.hint,pul=reduced?0:Math.sin(clock/260)*1.2;groundEllipse(h.x,h.y,h.r+pul,'rgba(255,227,77,.14)','rgba(255,227,77,.85)',2,[10,8])}
   if(view.marker){const o=proj(view.marker.x,view.marker.y),m=3*U*o.s;c.strokeStyle='#ffe34d';c.lineWidth=3;c.beginPath();c.moveTo(o.x-m,o.y-m*.6);c.lineTo(o.x+m,o.y+m*.6);c.moveTo(o.x+m,o.y-m*.6);c.lineTo(o.x-m,o.y+m*.6);c.stroke()}
   drawCoachMarks();
   /* Depth-sorted cast */
@@ -2322,7 +2347,7 @@ function hull(pts){const p=pts.slice().sort((a,b)=>a.x-b.x||a.y-b.y);if(p.length
 function celebrate(){if(GL.on){GL.jump=1;GL.zoom=1.1;GL.flashAmt=.8;GL.netHit=clock+500;confettiRain();return}if(reduced)return;flash=GL.on?0:.55;shake=9;bulbs=70;for(let i=0;i<130;i++){const a=-Math.PI/2+(Math.random()-.5)*1.8,v=3+Math.random()*7;particles.push({x:W/2+(Math.random()-.5)*W*.5,y:H*.2,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:80+Math.random()*50,col:rnd(['#e0212f','#fff','#ffe34d','#74e08a']),s:2+Math.random()*2.6,rot:Math.random()*6})}}
 
 /* ========== Setup flow ========== */
-const setup={name:'',club:'',fmt:5,pos:null,step:0,active:false};
+const setup={name:'',club:'',fmt:5,pos:null,step:0,active:false,look:null};
 /* Players: everything personal is kept per player, so nobody's results mix */
 const playerKey=n=>'fts-player-'+n.toLowerCase();
 const starKey=(f,l)=>`fts-stars-${setup.name.toLowerCase()}-${f}-${l}`;
@@ -2332,7 +2357,7 @@ function listPlayers(){return playerNames().map(n=>Object.assign({name:n,last:0}
 function savePlayer(){
   if(!setup.active||!setup.name)return;
   if(!hasPlayer(setup.name))store.set('fts-players',[...playerNames(),setup.name]);
-  store.set(playerKey(setup.name),{name:setup.name,club:setup.club,fmt:coachRestore?coachRestore.fmt:setup.fmt,pos:coachRestore?coachRestore.pos:setup.pos,tempo,lang,last:Date.now()});
+  store.set(playerKey(setup.name),{name:setup.name,club:setup.club,fmt:coachRestore?coachRestore.fmt:setup.fmt,pos:coachRestore?coachRestore.pos:setup.pos,tempo,lang,look:setup.look,last:Date.now()});
 }
 /* Saves from before players existed: every saved name becomes a player */
 function migratePlayers(){
@@ -2361,6 +2386,7 @@ const slotOf=()=>FORMATS[setup.fmt].slots.find(s=>s.id===setup.pos);
 const roleName=s=>t(s.nl,s.fr);
 function show(id){
   if(id!=='play'&&id!=='result')restoreSetup();
+  keepAwake(id==='play');
   ['setup','play','result','cabinet','stats','coachEd'].forEach(s=>$(s).hidden=s!==id);
   if(GL.on){
     const was=GL.mode;GL_setMode(id==='play'?'match':'menu');
@@ -2437,6 +2463,8 @@ function renderLevels(){
   const tabs=[['match',t('Matchen','Matchs')]];if(themes.length)tabs.push(['idea',t('Oefenen','Entraînement')]);if(cs.length)tabs.push(['coach',`${t('Coach','Coach')} (${cs.length})`]);
   if(!tabs.some(x=>x[0]===levelTab))levelTab='match';
   if(tabs.length>1){const seg=document.createElement('div');seg.className='seg lv-tabs';seg.setAttribute('role','tablist');tabs.forEach(([k,txt])=>{const b=document.createElement('button');b.id='tab-'+k;b.textContent=txt;b.setAttribute('role','tab');b.setAttribute('aria-pressed',k===levelTab);b.setAttribute('aria-selected',k===levelTab);b.onclick=()=>{levelTab=k;renderLevels()};seg.appendChild(b)});box.appendChild(seg)}
+  if(limitReached()){box.innerHTML='';const d=document.createElement('div');d.className='limit-card';d.id='limitCard';const n=todaysMatches();d.innerHTML='<b></b><span></span>';d.querySelector('b').textContent=t('Klaar voor vandaag!','C’est fini pour aujourd’hui !');d.querySelector('span').textContent=t(`Je speelde ${n} ${n===1?'match':'matchen'}. Neem nu een echte bal en kom morgen terug.`,`Tu as joué ${n} match${n===1?'':'s'}. Prends un vrai ballon et reviens demain.`);box.appendChild(d);return}
+  if(levelTab==='match'&&sel){const best=store.get(dailyKey(),null),b=document.createElement('button');b.className='level daily';b.id='daily-btn';b.innerHTML='<span class="num">☀</span><span><strong></strong><small></small></span><span class="stars"></span>';b.querySelector('strong').textContent=p2(DAILY.n);b.querySelector('small').textContent=p2(DAILY.s);b.querySelector('.stars').textContent=best===null?'':`${best}/6 ✓`;b.onclick=()=>startMatch(4,{k:'daily'});box.appendChild(b)}
   if(levelTab==='match')LEVELS.forEach((l,i)=>{
     if(l.hidden)return;
     const n=store.get(starKey(setup.fmt,i),0),b=document.createElement('button');b.className='level';b.id='level'+i;
@@ -2456,7 +2484,7 @@ function setLang(l){
   document.querySelectorAll('[data-fr]').forEach(el=>{if(el._nl===undefined)el._nl=el.innerHTML;el.innerHTML=l==='fr'?el.dataset.fr:el._nl});
   document.querySelectorAll('[data-fr-aria]').forEach(el=>{if(el._nlA===undefined)el._nlA=el.getAttribute('aria-label');el.setAttribute('aria-label',l==='fr'?el.dataset.frAria:el._nlA)});
   document.querySelectorAll('[data-fr-ph]').forEach(el=>{if(el._nlP===undefined)el._nlP=el.placeholder;el.placeholder=l==='fr'?el.dataset.frPh:el._nlP});
-  $('langNl').setAttribute('aria-pressed',l==='nl');$('langFr').setAttribute('aria-pressed',l==='fr');$('pickNl').setAttribute('aria-pressed',l==='nl');$('pickFr').setAttribute('aria-pressed',l==='fr');savePlayer();if(setup.step===0)renderPlayers();
+  $('langNl').setAttribute('aria-pressed',l==='nl');$('langFr').setAttribute('aria-pressed',l==='fr');$('pickNl').setAttribute('aria-pressed',l==='nl');$('pickFr').setAttribute('aria-pressed',l==='fr');savePlayer();if(setup.step===0)renderPlayers();renderLooks();
   $('nameErr').textContent='';bg=null;updateHero();renderKits();
 }
 function setTempo(v){tempo=v;store.set('veld-tempo',v);savePlayer();$('tempoSlow').setAttribute('aria-pressed',v==='slow');$('tempoMatch').setAttribute('aria-pressed',v!=='slow')}
@@ -2480,14 +2508,24 @@ function renderPlayers(){
     b.onclick=()=>selectPlayer(d);box.appendChild(b);
   });
 }
+const HAIR_STYLES=[['Kort','Court'],['Kuif','Mèche'],['Glad','Ras'],['Krullen','Boucles'],['Staart','Queue']],HAIR_COLS=['#1c1410','#3b2413','#0f0f12','#c9a25a','#8a3b1c'];
+const cleanLook=l=>l&&typeof l==='object'?{skin:clamp(Math.round(Number(l.skin)||0),0,SKIN.length-1),hs:clamp(Math.round(Number(l.hs)||0),0,4),hc:clamp(Math.round(Number(l.hc)||0),0,HAIR_COLS.length-1)}:null;
+function renderLooks(){
+  const box=$('looks');if(!box)return;box.innerHTML='';const cur=setup.look;
+  const pick=(k,v)=>{setup.look=Object.assign({skin:0,hs:0,hc:1},setup.look,{[k]:v});savePlayer();renderLooks();rebuildHero()};
+  const row=(lab,items)=>{const r=document.createElement('div');r.className='look-row';r.setAttribute('role','group');r.setAttribute('aria-label',lab);items.forEach(b=>r.appendChild(b));box.appendChild(r)};
+  row(t('Huid','Peau'),SKIN.map((c,i)=>{const b=document.createElement('button');b.className='swatch';b.id='skin'+i;b.style.background=c;b.setAttribute('aria-label',t(`Huid ${i+1}`,`Peau ${i+1}`));b.setAttribute('aria-pressed',!!cur&&cur.skin===i);b.onclick=()=>pick('skin',i);return b}));
+  row(t('Haar','Cheveux'),HAIR_STYLES.map((n,i)=>{const b=document.createElement('button');b.id='hair'+i;b.textContent=p2(n);b.setAttribute('aria-pressed',!!cur&&cur.hs===i);b.onclick=()=>pick('hs',i);return b}));
+  row(t('Haarkleur','Couleur des cheveux'),HAIR_COLS.map((c,i)=>{const b=document.createElement('button');b.className='swatch';b.id='hc'+i;b.style.background=c;b.setAttribute('aria-label',t(`Haarkleur ${i+1}`,`Couleur ${i+1}`));b.setAttribute('aria-pressed',!!cur&&cur.hc===i);b.onclick=()=>pick('hc',i);return b}));
+}
 function selectPlayer(d){
-  audio();setup.name=d.name;setup.club=d.club||'';setup.fmt=FORMATS[d.fmt]?d.fmt:5;setup.pos=d.pos||null;setup.active=true;
-  fillPlayerForm(true);setTempo(d.tempo==='slow'?'slow':'match');setLang(d.lang==='fr'?'fr':d.lang==='nl'?'nl':lang);
+  audio();setup.name=d.name;setup.club=d.club||'';setup.fmt=FORMATS[d.fmt]?d.fmt:5;setup.pos=d.pos||null;setup.active=true;setup.look=cleanLook(d.look);
+  fillPlayerForm(true);renderLooks();setTempo(d.tempo==='slow'?'slow':'match');setLang(d.lang==='fr'?'fr':d.lang==='nl'?'nl':lang);
   savePlayer();renderKits();rebuildHero();if(GL.on)GL_menuScene();goStep(2);
 }
 function startNewPlayer(){
-  setup.active=false;setup.name='';setup.club='';setup.fmt=5;setup.pos=null;
-  fillPlayerForm(false);setTempo('match');goStep(1);rebuildHero();if(GL.on)GL_menuScene();
+  setup.active=false;setup.name='';setup.club='';setup.fmt=5;setup.pos=null;setup.look=null;
+  fillPlayerForm(false);renderLooks();setTempo('match');goStep(1);rebuildHero();if(GL.on)GL_menuScene();
 }
 
 /* ========== Match flow ========== */
@@ -2523,6 +2561,7 @@ function runIntro(){
   });
 }
 async function startMatch(lv,opt){
+  if(limitReached()&&!coachBack){restoreSetup();show('setup');goStep(4);return}
   const L_=LEVELS[lv];if(L_.theme&&!themePool(opt.k).length)return;
   if(!store.get('fts-intro-'+setup.name.toLowerCase(),false))await runIntro();
   const my=++token;tweens.forEach(x=>x.res());tweens=[];
@@ -2530,10 +2569,10 @@ async function startMatch(lv,opt){
   GL.mode='match';buildTeams();clearScene();bg=null;GL.showHero=false;if(GL.on){GL_setMode('match');GL.checkAt=clock+2400;GL.badChecks=0;GL_updateScreen();GL.camPos.set(70,70,150);GL.camLook.set(0,4,0)}
   G={lv,us:0,them:0,i:0,n:ACTIONS,nOpen:ACTIONS/2,nDicht:ACTIONS/2,pts:0,open:0,dicht:0,fast:0,streak:0,best:0,rtSum:0,rtN:0,miss:[],missDetail:[],log:[],list:L_.live?[]:L_.theme?pickTheme(opt.k):L_.coach?opt.q.slice(0,COACH_MAX).map(q=>Object.assign({coach:true},q)):pickSituations(),opt};
   if(!L_.live){G.n=G.list.length;G.nOpen=G.list.filter(x=>x.coach?x.b[0]===0:x.s==='open').length;G.nDicht=G.n-G.nOpen}
-  $('coachNote').hidden=true;$('liveToast').hidden=true;$('streak').hidden=true;
+  $('coachNote').hidden=true;G.pace=1;G.badRun=0;$('liveToast').hidden=true;$('streak').hidden=true;
   $('tHome').textContent=(setup.club||t('THUIS','NOUS')).toUpperCase();
   audio();startAmbience();updateScore();setBar(1);setDock('');show('play');
-  const sel=slotOf(),head=L_.theme?p2(THEMES.find(x=>x.k===opt.k).n):L_.coach?(opt.t||t('Coach','Coach')):roleName(sel);$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
+  const sel=slotOf(),head=L_.theme?p2([...THEMES,DAILY].find(x=>x.k===opt.k).n):L_.coach?(opt.t||t('Coach','Coach')):roleName(sel);$('chip').textContent=`${setup.name} · ${roleName(sel)}`;
   banner(head);roar(1.2,.06);sfx.whistle();
   await wait(1100);if(my!==token)return;hideBanner();
   if(LEVELS[lv].live){await runLive(my);return}
@@ -2543,7 +2582,7 @@ async function startMatch(lv,opt){
 async function playAction(sit,my){
   view={};setDock('');hideBanner();ball.owner=null;ball.from=ball.to=null;ball.z=0;
   possShown=null;$('poss').hidden=true;
-  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*Math.min(1,G.i/Math.max(1,G.list.length-1)))*(tempo==='slow'?1.7:1)*1000;
+  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*Math.min(1,G.i/Math.max(1,G.list.length-1)))*(tempo==='slow'?1.7:1)*(G.pace||1)*1000;
   setBar(1);
   const c=sit.coach?composeCoach(sit):compose(sit,slotOf());c.sit=sit;
   c.pos.us.forEach((o,i)=>{runTo(us[i],o.x,o.y)});
@@ -2564,6 +2603,7 @@ async function playAction(sit,my){
   if(dir)tween(carrier,{y:carrier.y+dir},total,'l');
   if(GL.on){const c0=c;setTimeout(()=>{if(my!==token||!deciding)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;const towardX=(c0.ball[0]-a.x)*.05,towardY=(c0.ball[1]-a.y)*.05;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+towardX+Math.sin(i*2.3)*1.4,5,95),y:clamp(a.y+towardY+Math.cos(i*1.7)*1.4,8,132)},total,'l')})},650)}
   const t0=clock;
+  view.hint=null;if(G.lv>=2&&(G.badRun||0)>=2){const r=FORMATS[setup.fmt].radius[0];view.hint={x:clamp(c.ideal.x+(Math.random()-.5)*r*.9,6,94),y:clamp(c.ideal.y+(Math.random()-.5)*r*.9,8,134),r:r*1.7};setDock(`${c.isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.')} ${t('Tip: kijk in de gele zone!','Astuce : regarde dans la zone jaune !')}`)}
   const answer=await new Promise(res=>{deciding={t0,total,res,c}});
   deciding=null;if(my!==token)return;
   hideBanner();$('choices').hidden=true;$('prompt').hidden=true;view.rings=null;setBar(0);
@@ -2735,6 +2775,26 @@ function renderCoachEditor(){
   cv.style.width=w+'px';cv.style.height=w*1.4+'px';cv.width=Math.round(w*CE.dpr);cv.height=Math.round(w*1.4*CE.dpr);
   CE.cv=cv;CE.st=st;ceFixHolder();ceBindCanvas(cv);ceDraw();ceStatus();
 }
+/* The clock follows the child: quicker when he flies, calmer after a mistake */
+function paceAfter(res,fast){const bad=res==='wrong'||res==='late';G.badRun=bad?(G.badRun||0)+1:0;G.pace=clamp((G.pace||1)*(bad?1.12:res==='good'&&fast?.95:1),.8,1.4);view.hint=null}
+/* ========== Challenge of the day: the same six moments for every child at this position ========== */
+const DAILY={k:'daily',n:['Uitdaging van de dag','Défi du jour'],s:['Elke dag 6 nieuwe situaties, voor iedereen dezelfde','Chaque jour 6 nouvelles situations, les mêmes pour tous']};
+const dayRnd=seed=>{let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)|0;let q=Math.imul(a^(a>>>15),1|a);q=(q+Math.imul(q^(q>>>7),61|q))^q;return((q^(q>>>14))>>>0)/4294967296}};
+function dailyList(){
+  const pool=rolePool(),sl=slotOf(),key=todayKey()+'|'+setup.fmt+'|'+(sl?sl.role:'');let h=7;for(let i=0;i<key.length;i++)h=(h*31+key.charCodeAt(i))|0;
+  const rnd=dayRnd(h),pick=(arr,n)=>{const a=arr.slice(),o=[];while(o.length<n&&a.length)o.push(a.splice(Math.floor(rnd()*a.length),1)[0]);return o};
+  const all=[...pick(pool.filter(x=>x.s==='open'),3),...pick(pool.filter(x=>x.s==='dicht'),3)];return pick(all,all.length);
+}
+const dailyKey=()=>`fts-daily-${setup.name.toLowerCase()}-${todayKey()}-${setup.fmt}-${setup.pos}`;
+/* ========== Play time chosen by the parent ========== */
+const limitKey=()=>'fts-limit-'+setup.name.toLowerCase();
+const todaysMatches=()=>{const pr=loadProgress();return((pr.stats&&pr.stats.history)||[]).filter(h=>h.day===todayKey()).length};
+const limitReached=()=>{const l=Number(store.get(limitKey(),0))||0;return l>0&&todaysMatches()>=l};
+/* Keep the screen on during a match */
+let wakeLock=null;
+async function keepAwake(on){try{if(on){if(!wakeLock&&navigator.wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.onrelease=()=>{wakeLock=null}}}else if(wakeLock){const w=wakeLock;wakeLock=null;await w.release()}}catch(e){wakeLock=null}}
+async function shareText(txt,btn){const done=t('Gekopieerd','Copié');try{if(navigator.share){await navigator.share({text:txt});return}}catch(e){if(e&&e.name==='AbortError')return}
+  try{await navigator.clipboard.writeText(txt);if(btn)btn.textContent=done}catch(e){if(btn)btn.textContent=t('Delen lukt niet op dit toestel','Partage impossible sur cet appareil')}}
 function teamShift(c,carrier){
   us.forEach((m,i)=>{
     if(m===carrier||m===me||m.gk||i===c.presser)return;
@@ -2782,7 +2842,7 @@ async function runLive(my){
 async function liveDecision(pick,st,my){
   const slot=slotOf(),k=G.i;
   view={};hideBanner();ball.fall=0;ball.from=ball.to=null;ball.z=0;
-  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(k/(LIVE_N-1)))*(tempo==='slow'?1.7:1)*1000;
+  const lvl=LEVELS[G.lv],total=(lvl.time[0]+(lvl.time[1]-lvl.time[0])*(k/(LIVE_N-1)))*(tempo==='slow'?1.7:1)*(G.pace||1)*1000;
   setBar(1);
   const c=compose(pick.sit,slot,pick.flip);c.sit=pick.sit;
   c.pos.us.forEach((o,i)=>{runTo(us[i],o.x,o.y)});
@@ -2802,13 +2862,14 @@ async function liveDecision(pick,st,my){
   if(st.turn&&GL.on)sfx.kick();
   const dir=carrier.gk?0:(c.isOpen?-5:5);if(dir)tween(carrier,{y:carrier.y+dir},total,'l');
   if(GL.on){setTimeout(()=>{if(my!==token||!deciding)return;[...us,...them].forEach((a,i)=>{if(a===carrier||a===me||a.gk)return;if(tweens.some(x=>x.o===a))return;tween(a,{x:clamp(a.x+(c.ball[0]-a.x)*.05+Math.sin(i*2.3)*1.4,5,95),y:clamp(a.y+(c.ball[1]-a.y)*.05+Math.cos(i*1.7)*1.4,8,132)},total,'l')})},500)}
+  view.hint=null;if(G.lv>=2&&(G.badRun||0)>=2){const r=FORMATS[setup.fmt].radius[0];view.hint={x:clamp(c.ideal.x+(Math.random()-.5)*r*.9,6,94),y:clamp(c.ideal.y+(Math.random()-.5)*r*.9,8,134),r:r*1.7};setDock(`${c.isOpen?t('WIJ hebben de bal.','ON a le ballon.'):t('ZIJ hebben de bal.','ILS ont le ballon.')} ${t('Tip: kijk in de gele zone!','Astuce : regarde dans la zone jaune !')}`)}
   const t0=clock,answer=await new Promise(res=>{deciding={t0,total,res,c}});
   deciding=null;if(my!==token)return null;
   $('prompt').hidden=true;setBar(0);
   return liveResolve(c,answer,clock-t0,total,carrier,st,my);
 }
 async function liveResolve(c,a,ms,total,carrier,st,my){
-  const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token,L=G.live,role=slotOf().role;
+  const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token,L=G.live,role=slotOf().role;paceAfter(j.res,ms<total*.5);
   const snap=[...us,...them].map(q=>({a:q,x:q.x,y:q.y})),mine=j.spot?{x:j.spot.x,y:j.spot.y}:{x:me.x,y:me.y};
   const good=j.res==='good',fast=ms<total*.5,bad=j.res==='wrong'||j.res==='late';
   G.n++;if(isOpen)G.nOpen++;else G.nDicht++;G.lastFast=fast;
@@ -2829,7 +2890,7 @@ async function liveResolve(c,a,ms,total,carrier,st,my){
   if(isOpen){
     if(!bad){
       /* Good play from the back leads to goals too: the striker finishes your pass */
-      const attack=good&&R<(role==='GK'?.14:me.y<74?.5:.3);
+      const attack=good&&R<(role==='GK'?.22:me.y<74?.5:.34);
       if(attack){
         const scored=await sceneGoal(carrier,my);if(!alive())return null;
         if(scored)L.myGoals++;if(st.counter)L.counterGoals++;
@@ -2884,7 +2945,7 @@ async function sceneBeaten(carrier,my){
   sfx.bad();return{x:tx,y:ty};
 }
 async function resolveAction(c,a,ms,total,carrier,my){
-  const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;
+  const j=judge(c,a),isOpen=c.isOpen,alive=()=>my===token;paceAfter(j.res,ms<total*.5);
   const snap=[...us,...them].map(q=>({a:q,x:q.x,y:q.y})),mine=j.spot?{x:j.spot.x,y:j.spot.y}:{x:me.x,y:me.y};
   if(j.spot){view.marker=a.kind==='tap'?{x:j.spot.x,y:j.spot.y}:null;await tween(me,{x:j.spot.x,y:j.spot.y},runDur(me,j.spot.x,j.spot.y,300,1250),'run');if(!alive())return;view.marker=null}
   teamShift(c,carrier);
@@ -3081,6 +3142,11 @@ function finish(){
   $('rOpen').textContent=G.nOpen?`${G.open}/${G.nOpen}`:'–';$('rDicht').textContent=G.nDicht?`${G.dicht}/${G.nDicht}`:'–';
   $('rTip').textContent=G.open+G.dicht===G.n?t(`Alles goed, ${setup.name}! Jij bent een baas op het veld.`,`Tout est bon, ${setup.name} ! Tu es un chef sur le terrain.`):G.open<G.dicht?t('Oefen OPEN: wij hebben de bal, maak het veld groot.','Entraîne-toi à OUVRIR : on a le ballon, rends le terrain grand.'):G.dicht<G.open?t('Oefen DICHT: zij hebben de bal, maak het veld klein.','Entraîne-toi à FERMER : ils ont le ballon, rends le terrain petit.'):t('Kijk altijd eerst: wie heeft de bal?','Regarde toujours d’abord : qui a le ballon ?');
   {const rr=$('rRating');if(G.lv===3&&G.n){const note=Math.round(clamp(3.5+(G.open+G.dicht)/G.n*5+Math.min(1,G.fast/8)*.7+Math.min(.8,(G.live.myGoals||0)*.3),3,10)*2)/2,txt=String(note).replace('.',lang==='fr'?',':',');rr.hidden=false;rr.textContent=t(`Jouw cijfer: ${txt}/10`,`Ta note : ${txt}/10`)+(note>=8.5?' · '+t('Man van de match!','Homme du match !'):'')}else rr.hidden=true}
+  {const sb=$('rShare'),good=G.open+G.dicht,sl=slotOf(),who=`${setup.name} (${p2(FORMATS[setup.fmt].name)}, ${sl?roleName(sl):''})`;let txt='';
+    if(G.lv===5&&G.opt&&G.opt.id){const miss=G.log.map((k,i)=>k==='good'?0:i+1).filter(Boolean);txt=t(`Find the Space · reeks “${G.opt.t||'Coach'}”: ${who} heeft ${good}/${G.n}.`,`Find the Space · série « ${G.opt.t||'Coach'} » : ${who} a ${good}/${G.n}.`)+(miss.length?' '+t(`Nog te oefenen: situatie ${miss.join(', ')}.`,`À retravailler : situation ${miss.join(', ')}.`):'')}
+    else if(G.lv===4&&G.opt&&G.opt.k==='daily')txt=t(`Find the Space · uitdaging van de dag (${todayKey()}): ${who} heeft ${good}/${G.n}. Doe jij beter?`,`Find the Space · défi du jour (${todayKey()}) : ${who} a ${good}/${G.n}. Tu fais mieux ?`);
+    else if(G.lv===3)txt=t(`Find the Space · Live match: ${who}, ${G.us}-${G.them}, ${good}/${G.n} goede keuzes.`,`Find the Space · Match en direct : ${who}, ${G.us}-${G.them}, ${good}/${G.n} bons choix.`);
+    sb.hidden=!txt;if(txt){sb.textContent=G.lv===5?t('Stuur naar de coach','Envoyer au coach'):t('Deel mijn resultaat','Partager mon résultat');sb.onclick=()=>shareText(txt,sb)}}
   const news=recordMatch(n);
   if(GL.on){GL.hero=me||us[us.length-1];if(G.us>=G.them){setAct(GL.hero,'cheer',60000);GL.jump=G.us>G.them?.8:.3}else setAct(GL.hero,'despair',60000)}
   sfx.whistle();show('result');
@@ -3109,7 +3175,7 @@ function loadProgress(){
   const S=p.stats;
   /* Saves without modes: rebuild what the recent match list still knows */
   if(!S.modes){S.modes={};(S.history||[]).forEach(h=>{const k=`${h.fmt}|${h.lv}|${h.pos}`,m=S.modes[k]||(S.modes[k]=blankMode());addResult(m,h.us,h.them);m.open+=h.open;m.dicht+=h.dicht;m.good+=h.open+h.dicht;m.total+=ACTIONS})}
-  S.total=Math.max(S.total||0,(S.matches||0)*ACTIONS);S.good=Math.min(S.good||0,S.total);
+  if(!S.total&&S.matches)S.total=S.matches*ACTIONS;S.good=Math.min(S.good||0,S.total);
   Object.values(S.posStats||{}).forEach(q=>{q.tot=Math.max(q.tot||0,q.good||0)});
   return p;
 }
@@ -3147,6 +3213,7 @@ function recordMatch(starsWon){
   if(starsWon===3&&G.lv<3)addUnique(p.threeStars,G.lv);
   if(G.lv===4&&G.opt){
     const g=G.open+G.dicht;p.themes=p.themes||{};p.themes[G.opt.k]=Math.max(p.themes[G.opt.k]||0,g);const kk=themeKey(G.opt.k);store.set(kk,Math.max(store.get(kk,0),g));
+    if(G.opt.k==='daily'){const dk=dailyKey();store.set(dk,Math.max(store.get(dk,0),g));p.dailyDays=p.dailyDays||[];addUnique(p.dailyDays,todayKey());if(g===G.n)p.dailyPerfect=(p.dailyPerfect||0)+1}
     if(G.opt.k==='weak'){p.weakFix=p.weakFix||{};G.list.forEach((x,i)=>{if(G.log[i]==='good'){const id=SITS.indexOf(x);if(id>=0)p.weakFix[id]=(p.weakFix[id]||0)+1}})}
   }
   if(G.lv===5&&G.opt&&G.opt.id){p.coachDone=(p.coachDone||0)+1;if(G.open+G.dicht===G.n)p.coachPerfect=(p.coachPerfect||0)+1;const kk='fts-cbest-'+setup.name.toLowerCase()+'-'+G.opt.id;store.set(kk,Math.max(store.get(kk,0),G.open+G.dicht))}
@@ -3254,6 +3321,19 @@ function renderStats(){
   /* Last matches in this mode, on a fixed 0 to 8 scale */
   const hs=(p.history||[]).filter(h=>(F.fmt==='all'||String(h.fmt)===F.fmt)&&(F.lv==='all'||String(h.lv)===F.lv)&&(F.pos==='all'||h.fmt+'-'+h.pos===F.pos)).slice(-12);
   if(hs.length){const c=card(t('Laatste matchen','Derniers matchs')),info=document.createElement('p');info.textContent=t('Goede keuzes per match, van 0 tot 8.','Bons choix par match, de 0 à 8.');c.appendChild(info);const hist=document.createElement('div');hist.className='hist';hist.setAttribute('role','img');hist.setAttribute('aria-label',hs.map(h=>h.open+h.dicht).join(', '));hs.forEach(h=>{const i=document.createElement('i');i.style.height=((h.open+h.dicht)/8*100)+'%';hist.appendChild(i)});c.appendChild(hist);const sc=document.createElement('div');sc.className='hist-scale';sc.innerHTML=`<span>${t('oudste','plus ancien')}</span><span>${t('nieuwste','plus récent')}</span>`;c.appendChild(sc)}
+  /* Play time */
+  {const lc=card(t('Speeltijd','Temps de jeu')),lp=document.createElement('p');lp.textContent=t('Kies hoeveel matchen per dag. Daarna vraagt het spel om buiten te gaan spelen.','Choisissez le nombre de matchs par jour. Ensuite, le jeu propose d’aller jouer dehors.');lc.appendChild(lp);
+    const w=document.createElement('label');w.className='stat-select';w.htmlFor='limitSel';w.textContent=t('Per dag','Par jour');const sl=document.createElement('select');sl.id='limitSel';[[0,t('Geen limiet','Sans limite')],[3,'3'],[5,'5'],[8,'8'],[12,'12']].forEach(([v,x])=>{const o=document.createElement('option');o.value=v;o.textContent=v?`${x} ${t('matchen','matchs')}`:x;sl.appendChild(o)});sl.value=String(Number(store.get(limitKey(),0))||0);sl.onchange=()=>store.set(limitKey(),Number(sl.value));w.appendChild(sl);lc.appendChild(w)}
+  /* Report to send to the coach */
+  {const rc=card(t('Rapport voor de coach','Rapport pour le coach')),rp=document.createElement('p'),rb=document.createElement('button');rp.textContent=t('Een korte tekst met de resultaten en de punten om te oefenen, om door te sturen.','Un court texte avec les résultats et les points à travailler, à envoyer.');rb.className='ce-btn';rb.id='reportBtn';rb.textContent=t('Rapport delen','Partager le rapport');
+    rb.onclick=()=>{const pr=loadProgress(),S=pr.stats,pc=(a,b)=>b?clamp(Math.round(a/b*100),0,100)+' %':'–',rt=S.rtN?(S.rtSum/S.rtN/1000).toFixed(1).replace('.',',')+' s':'–';
+      const top=Object.entries(S.miss||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).filter(([id])=>SITS[id]).map(([id,n])=>`- (${n}×) ${p2(SITS[id].tip)}`);
+      const L=[t(`Find the Space – rapport van ${setup.name} (sinds ${S.since||todayKey()})`,`Find the Space – rapport de ${setup.name} (depuis le ${S.since||todayKey()})`),
+        t(`Matchen: ${S.matches} · Goede keuzes: ${pc(S.good,S.total)} · Reactie: ${rt}`,`Matchs : ${S.matches} · Bons choix : ${pc(S.good,S.total)} · Réaction : ${rt}`),
+        t(`Open (wij hebben de bal): ${pc(S.open,S.total/2)} · Dicht (zij hebben de bal): ${pc(S.dicht,S.total/2)}`,`Ouvrir (on a le ballon) : ${pc(S.open,S.total/2)} · Fermer (ils ont le ballon) : ${pc(S.dicht,S.total/2)}`),
+        t(`Bekers: ${pr.cups.length}`,`Trophées : ${pr.cups.length}`)];
+      if(top.length)L.push(t('Nog te oefenen:','À travailler :'),...top);shareText(L.join('\n'),rb)};
+    rc.append(rp,rb)}
   /* Backup */
   const bk=card(t('Bewaarcode','Code de sauvegarde')),bp=document.createElement('p');bp.textContent=t('Kopieer deze code om de bekers op een ander toestel terug te zetten.','Copiez ce code pour remettre les trophées sur un autre appareil.');bk.appendChild(bp);
   const code=document.createElement('textarea');code.id='backupCode';code.setAttribute('aria-label',t('Bewaarcode','Code de sauvegarde'));
@@ -3396,6 +3476,14 @@ function frame(rawTs){
 migratePlayers();
 function announceCoach(){const got=importFromHash();if(got){levelTab='coach';if(setup.step===4)renderLevels();const n=$('coachNote');n.textContent=t(`Nieuwe reeks van de coach: “${got.t||'Coach'}” (${got.q.length} situaties). Kies je speler: je vindt ze bij je matchen.`,`Nouvelle série du coach : « ${got.t||'Coach'} » (${got.q.length} situations). Choisis ton joueur : elle est dans tes défis.`);n.hidden=false}}
 announceCoach();addEventListener('hashchange',announceCoach);
+{const ios=/iPhone|iPad|iPod/.test(navigator.userAgent),alone=navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
+  if(ios&&!alone&&/github\.io$/.test(location.hostname)&&!store.get('fts-pwa-tip',false))$('pwaNote').hidden=false;
+  $('pwaClose').onclick=()=>{$('pwaNote').hidden=true;store.set('fts-pwa-tip',true)}}
+/* If something breaks in the middle of a match, go back to the menu instead of freezing */
+let lastCrash=-1e9;
+function safetyNet(){if($('play').hidden||clock-lastCrash<4000)return;lastCrash=clock;try{stopMatch()}catch(e){}deciding=null;show('setup');goStep(4);const n=$('coachNote');n.textContent=t('Oeps, er ging iets mis. We beginnen opnieuw.','Oups, petit souci. On recommence.');n.hidden=false}
+addEventListener('error',e=>{if(e&&e.error)safetyNet()});
+addEventListener('unhandledrejection',e=>{const r=e&&e.reason;if(r instanceof Error&&!/Abort|NotAllowed|NotSupported|InvalidState/.test(r.name))safetyNet()});
 initGL();
 setSoundIcons();setTempo(tempo);setLang(store.get('veld-lang','nl')==='fr'?'fr':'nl');goStep(playerNames().length?0:1);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{bg=null;if(GL.on){GL.pitchFor=null;GL.mats.clear();GL_menuScene()}});
